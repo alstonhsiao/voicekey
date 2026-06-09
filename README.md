@@ -316,8 +316,8 @@ python main.py
 
 ### 方案六：Grok / Whisper STT（macOS）✨ 最新
 
-> macOS 原生版本。預設使用 **xAI Grok STT**（比 OpenAI 快 ~32%），可在 config.json 切換為 OpenAI / Groq。
-> 新增**浮動 HUD 視窗**與**四種辨識模式**，點 HUD 或按 F10 即可切換。
+> macOS 原生版本，相容 macOS 26 Tahoe。預設使用 **xAI Grok STT**（比 OpenAI 快 ~32%），可在 config.json 切換為 OpenAI / Groq。
+> **rumps 選單列圖示**顯示錄音狀態，點選可切換四種辨識模式；按 F10 亦可循環切換。
 
 **需要（擇一）：**
 - [xAI API Key](https://console.x.ai/)（推薦，`XAI_API_KEY`）
@@ -330,12 +330,12 @@ python main.py
 
 | 功能 | 說明 |
 |---|---|
-| 🪟 **浮動 HUD** | macOS 26 暫停用（tkinter 相容性問題，待原生 HUD 實作） |
+| 🎤 **rumps 選單列** | 右上角圖示顯示狀態（⏸ / 🔴 / 🔄 / ⚠️），點選可切換模式或結束程式 |
 | 📝 **四種模式** | 直接轉錄 / 中翻英 / 專業模式 / 一般對話 |
 | 🔀 **F10 切換** | 按 F10 循環切換模式（不需移動滑鼠） |
-| 🖱️ **點 HUD 選單** | 點 HUD 展開下拉選單，直接選目標模式 |
 | ⚡ **Grok STT** | 平均 0.97s（vs OpenAI 1.43s），延遲更穩定 |
 | 🔌 **Provider 切換** | config.json 一行切換 grok / openai / groq |
+| 🖥️ **macOS 26 相容** | HUD 停用（tkinter 不相容），rumps 選單列正常運作 |
 
 ---
 
@@ -420,11 +420,11 @@ cd /path/to/windows_Whisper/approach-6-whisper-macos && .venv/bin/python main.py
 
 | 動作 | 說明 |
 |---|---|
-| 按住 **F9** | 開始錄音（等 beep 聲才說話）|
-| 放開 **F9** | 停止錄音 → 辨識 → 貼到游標位置 |
+| 按 **Ctrl+F1**（第一下）| 開始錄音（等 beep 聲才說話）|
+| 按 **Ctrl+F1**（第二下）| 停止錄音 → 辨識 → 貼到游標位置 |
 | 按 **F10** | 切換辨識模式（循環） |
-| 點 **HUD 主標籤** | 展開模式選單 |
-| **HUD 右鍵** | 結束程式 |
+| 點選單列 **🎤 圖示** | 展開模式選單，直接選目標模式 |
+| 選單列 **❌ 結束程式** | 結束程式 |
 
 ---
 

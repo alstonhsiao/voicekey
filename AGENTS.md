@@ -4,7 +4,7 @@
 
 ## Mission
 語音轉文字工具（Grok STT / Whisper / Gemini，多平台）。
-macOS 主力方案：approach-6（浮動 HUD、四模式切換、multi-provider）。
+macOS 主力方案：approach-6（rumps 選單列、四模式切換、multi-provider；macOS 26 相容）。
 
 ## Always-On Rules
 - Keep this file concise: governance only; move details to spoke modules.
