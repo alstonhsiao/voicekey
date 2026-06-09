@@ -1,29 +1,86 @@
 {
   "api": {
-    "openai_api_key": "YOUR_OPENAI_API_KEY_HERE",
-    "model": "gpt-4o-transcribe",
-    "language": "zh",
-    "temperature": 0.0,
-    "response_format": "json"
+    "provider": "grok",
+
+    "openai": {
+      "api_key": "",
+      "model": "gpt-4o-transcribe",
+      "endpoint": "https://api.openai.com/v1/audio/transcriptions"
+    },
+    "grok": {
+      "api_key": "",
+      "model": "grok-stt",
+      "endpoint": "https://api.x.ai/v1/stt"
+    },
+    "groq": {
+      "api_key": "",
+      "model": "whisper-large-v3-turbo",
+      "endpoint": "https://api.groq.com/openai/v1/audio/transcriptions"
+    },
+
+    "temperature": 0.0
   },
+
   "recording": {
     "sample_rate": 16000,
     "channels": 1,
     "bit_depth": 16
   },
-  "prompt": {
-    "text": "請使用繁體中文。包含：蕭淳云, 周芷萓, 合作廠商加模, 專案 Tahoe, n8n, Zeabur。"
-  },
+
   "hotkey": {
-    "record_key": "F9"
+    "record_key": "F9",
+    "mode_cycle_key": "F10"
   },
-  "post_process": {
-    "regex_rules": [
-      {
-        "pattern": "N8n|N 8 n",
-        "replacement": "n8n",
-        "flags": "IGNORECASE"
-      }
-    ]
+
+  "modes": [
+    {
+      "id": "direct",
+      "name": "直接轉錄",
+      "icon": "📝",
+      "language": "zh",
+      "translate_to_english": false,
+      "prompt": "請使用繁體中文。包含：蕭淳云, 周芷萓, 合作廠商加模, 專案 Tahoe, n8n, Zeabur。",
+      "regex_rules": [
+        { "pattern": "N8n|N 8 n", "replacement": "n8n", "flags": "IGNORECASE" }
+      ]
+    },
+    {
+      "id": "zh2en",
+      "name": "中翻英",
+      "icon": "🌐",
+      "language": "en",
+      "translate_to_english": true,
+      "prompt": "Translate Chinese speech to natural English. Keep technical terms unchanged.",
+      "regex_rules": []
+    },
+    {
+      "id": "pro",
+      "name": "專業模式",
+      "icon": "💼",
+      "language": "zh",
+      "translate_to_english": false,
+      "prompt": "請使用繁體中文。技術用語請保留英文：Kubernetes, Docker, PostgreSQL, Redis, React, TypeScript, n8n, Zeabur, API, SDK, OAuth, JWT, CI/CD。",
+      "regex_rules": []
+    },
+    {
+      "id": "casual",
+      "name": "一般對話",
+      "icon": "💬",
+      "language": "zh",
+      "translate_to_english": false,
+      "prompt": "請使用繁體中文。口語化、自然對話風格。",
+      "regex_rules": []
+    }
+  ],
+
+  "default_mode_id": "direct",
+
+  "ui": {
+    "hud_enabled": true,
+    "hud_position": "bottom-right",
+    "hud_offset_x": 20,
+    "hud_offset_y": 20,
+    "hud_opacity": 0.9,
+    "hud_font_size": 14
   }
 }

@@ -1,22 +1,29 @@
 """
-macOS 語音轉文字工具 — 方案六：OpenAI Whisper（macOS）
+macOS 語音轉文字工具 — 方案六：Whisper / Grok STT（macOS）
 
 使用方式：
   pip install -r requirements.txt
   python main.py
 
 操作：
-  - 按住 F9 → 開始錄音（聽到提示音後開始說話）
-  - 放開 F9 → 停止錄音 → 自動辨識 → 貼上文字到游標位置
-  - 按 Ctrl+C 結束程式
+  - 按住 F9  → 開始錄音（聽到提示音後開始說話）
+  - 放開 F9  → 停止錄音 → 自動辨識 → 貼上文字到游標位置
+  - 按  F10  → 循環切換轉錄模式（直接轉錄 / 中翻英 / 專業模式 / 一般對話）
+  - 點 HUD  → 展開模式選單（右下角浮動視窗）
+  - HUD 右鍵 → 結束程式
 
 macOS 權限需求：
   - 系統設定 → 隱私權與安全性 → 麥克風 → 允許 Terminal / IDE
   - 系統設定 → 隱私權與安全性 → 輔助使用 → 允許 Terminal / IDE
   - 系統設定 → 隱私權與安全性 → 輸入監控 → 允許 Terminal / IDE
 
+API Provider：
+  - 預設：xAI Grok STT（XAI_API_KEY in env.local）
+  - 可在 config.json api.provider 切換：grok / openai / groq
+
 與 approach-3（Windows Whisper）差異：
   - 針對 macOS 優化（提示音、Command+V、fcntl 單例鎖、rumps 選單列）
+  - 加入浮動 HUD、多模式切換、API Provider 抽象
   - 無 winsound / Windows Mutex 依賴
 """
 
@@ -117,20 +124,53 @@ def get_base_dir() -> Path:
 
 
 def load_config() -> dict:
-    """從 config.json 載入設定"""
-    config = {
-        "api_key": "",
-        "model": "whisper-1",
+    """從 config.json 載入設定（支援新 schema + 向後相容舊 schema）"""
+
+    # ── 預設值 ──
+    _default_mode = {
+        "id": "direct",
+        "name": "直接轉錄",
+        "icon": "📝",
         "language": "zh",
-        "temperature": 0.0,
-        "response_format": "json",
-        "sample_rate": 16000,
-        "channels": 1,
-        "hotkey": "f9",
+        "translate_to_english": False,
         "prompt": "請使用繁體中文。包含：蕭淳云, 周芷萓, 合作廠商加模, 專案 Tahoe, n8n, Zeabur。",
         "regex_rules": [
             {"pattern": r"N8n|N 8 n", "replacement": "n8n", "flags": "IGNORECASE"}
         ],
+    }
+    config = {
+        # 新 schema 必要欄位預設值
+        "api": {
+            "provider": "grok",
+            "openai": {
+                "api_key": "",
+                "model": "gpt-4o-transcribe",
+                "endpoint": "https://api.openai.com/v1/audio/transcriptions",
+            },
+            "grok": {
+                "api_key": "",
+                "model": "grok-stt",
+                "endpoint": "https://api.x.ai/v1/stt",
+            },
+            "groq": {
+                "api_key": "",
+                "model": "whisper-large-v3-turbo",
+                "endpoint": "https://api.groq.com/openai/v1/audio/transcriptions",
+            },
+            "temperature": 0.0,
+        },
+        "recording": {"sample_rate": 16000, "channels": 1},
+        "hotkey": {"record_key": "F9", "mode_cycle_key": "F10"},
+        "modes": [_default_mode],
+        "default_mode_id": "direct",
+        "ui": {
+            "hud_enabled": True,
+            "hud_position": "bottom-right",
+            "hud_offset_x": 20,
+            "hud_offset_y": 20,
+            "hud_opacity": 0.9,
+            "hud_font_size": 14,
+        },
     }
 
     base = get_base_dir()
@@ -140,26 +180,67 @@ def load_config() -> dict:
     ]
 
     for cp in config_paths:
-        if cp.exists():
-            with open(cp, encoding="utf-8") as f:
-                user_cfg = json.load(f)
-            if "api" in user_cfg:
-                config["api_key"] = user_cfg["api"].get("openai_api_key", config["api_key"])
-                config["model"] = user_cfg["api"].get("model", config["model"])
-                config["language"] = user_cfg["api"].get("language", config["language"])
-                config["temperature"] = user_cfg["api"].get("temperature", config["temperature"])
-            if "recording" in user_cfg:
-                config["sample_rate"] = user_cfg["recording"].get("sample_rate", config["sample_rate"])
-                config["channels"] = user_cfg["recording"].get("channels", config["channels"])
-            if "prompt" in user_cfg:
-                config["prompt"] = user_cfg["prompt"].get("text", config["prompt"])
-            if "hotkey" in user_cfg:
-                config["hotkey"] = user_cfg["hotkey"].get("record_key", config["hotkey"]).lower()
-            if "post_process" in user_cfg:
-                config["regex_rules"] = user_cfg["post_process"].get("regex_rules", config["regex_rules"])
-            break
+        if not cp.exists():
+            continue
+        with open(cp, encoding="utf-8") as f:
+            user_cfg = json.load(f)
 
-    # env.local / .env.local 覆蓋
+        # ── 新 schema ──
+        if "modes" in user_cfg:
+            config["modes"] = user_cfg["modes"]
+            config["default_mode_id"] = user_cfg.get("default_mode_id", "direct")
+            if "api" in user_cfg:
+                api_u = user_cfg["api"]
+                config["api"]["provider"] = api_u.get("provider", config["api"]["provider"])
+                config["api"]["temperature"] = api_u.get("temperature", config["api"]["temperature"])
+                for pname in ("openai", "grok", "groq"):
+                    if pname in api_u:
+                        config["api"][pname].update(api_u[pname])
+            if "recording" in user_cfg:
+                config["recording"].update(user_cfg["recording"])
+            if "hotkey" in user_cfg:
+                config["hotkey"].update(user_cfg["hotkey"])
+            if "ui" in user_cfg:
+                config["ui"].update(user_cfg["ui"])
+
+        # ── 舊 schema fallback ──
+        else:
+            old_prompt = _default_mode["prompt"]
+            old_regex = _default_mode["regex_rules"]
+            old_lang = "zh"
+            if "prompt" in user_cfg:
+                old_prompt = user_cfg["prompt"].get("text", old_prompt)
+            if "post_process" in user_cfg:
+                old_regex = user_cfg["post_process"].get("regex_rules", old_regex)
+            if "api" in user_cfg:
+                old_lang = user_cfg["api"].get("language", old_lang)
+                config["api"]["temperature"] = user_cfg["api"].get("temperature", 0.0)
+                # 舊 schema 的 openai_api_key 對應到 openai provider
+                old_key = user_cfg["api"].get("openai_api_key", "")
+                if old_key and old_key != "YOUR_OPENAI_API_KEY_HERE":
+                    config["api"]["openai"]["api_key"] = old_key
+                old_model = user_cfg["api"].get("model", "")
+                if old_model:
+                    config["api"]["openai"]["model"] = old_model
+                # 舊 schema 預設 provider 為 openai
+                config["api"]["provider"] = "openai"
+            if "recording" in user_cfg:
+                config["recording"].update(user_cfg["recording"])
+            if "hotkey" in user_cfg:
+                rk = user_cfg["hotkey"].get("record_key", "F9")
+                config["hotkey"]["record_key"] = rk
+
+            # 合成一個 direct 模式
+            config["modes"] = [{
+                **_default_mode,
+                "language": old_lang,
+                "prompt": old_prompt,
+                "regex_rules": old_regex,
+            }]
+            config["default_mode_id"] = "direct"
+        break
+
+    # ── env.local / .env.local 覆蓋 API keys ──
     env_candidates = [
         base / "env.local",
         base / ".env.local",
@@ -176,9 +257,175 @@ def load_config() -> dict:
                         os.environ.setdefault(key.strip(), value.strip())
             break
 
-    config["api_key"] = os.environ.get("OPENAI_API_KEY", config["api_key"])
+    # 環境變數優先覆蓋各 provider 的 api_key
+    if os.environ.get("OPENAI_API_KEY"):
+        config["api"]["openai"]["api_key"] = os.environ["OPENAI_API_KEY"]
+    if os.environ.get("XAI_API_KEY"):
+        config["api"]["grok"]["api_key"] = os.environ["XAI_API_KEY"]
+    if os.environ.get("GROQ_API_KEY"):
+        config["api"]["groq"]["api_key"] = os.environ["GROQ_API_KEY"]
 
     return config
+
+
+# ---------------------------------------------------------------------------
+# Mode 系統（多模式切換）
+# ---------------------------------------------------------------------------
+
+class Mode:
+    def __init__(self, raw: dict):
+        self.id = raw["id"]
+        self.name = raw["name"]
+        self.icon = raw.get("icon", "📝")
+        self.language = raw.get("language", "zh")
+        self.translate_to_english = raw.get("translate_to_english", False)
+        self.prompt = raw.get("prompt", "")
+        self.regex_rules = raw.get("regex_rules", [])
+
+    @property
+    def display(self) -> str:
+        return f"{self.icon} {self.name}"
+
+
+class ModeManager:
+    """管理可切換的轉錄模式。執行緒安全。"""
+
+    def __init__(self, modes: list[dict], default_id: str):
+        self._modes = [Mode(m) for m in modes]
+        if not self._modes:
+            raise ValueError("config.modes 不可為空")
+        self._index = 0
+        for i, m in enumerate(self._modes):
+            if m.id == default_id:
+                self._index = i
+                break
+        self._lock = threading.Lock()
+        self._listeners: list = []
+
+    @property
+    def current(self) -> Mode:
+        with self._lock:
+            return self._modes[self._index]
+
+    @property
+    def all(self) -> list[Mode]:
+        return list(self._modes)
+
+    def set_by_id(self, mode_id: str):
+        with self._lock:
+            for i, m in enumerate(self._modes):
+                if m.id == mode_id:
+                    self._index = i
+                    break
+        self._notify()
+
+    def cycle(self):
+        with self._lock:
+            self._index = (self._index + 1) % len(self._modes)
+        self._notify()
+
+    def on_change(self, callback):
+        self._listeners.append(callback)
+
+    def _notify(self):
+        current = self.current
+        for cb in self._listeners:
+            try:
+                cb(current)
+            except Exception:
+                pass
+
+
+# ---------------------------------------------------------------------------
+# API Provider 抽象
+# ---------------------------------------------------------------------------
+
+class TranscribeProvider:
+    """Provider 介面。子類實作 transcribe(wav_path, mode) -> str"""
+    name = "base"
+
+    def __init__(self, cfg: dict):
+        self.cfg = cfg
+
+    def transcribe(self, wav_path: str, mode: Mode) -> str:
+        raise NotImplementedError
+
+
+class OpenAIProvider(TranscribeProvider):
+    name = "openai"
+
+    def transcribe(self, wav_path, mode):
+        url = self.cfg["endpoint"]
+        headers = {"Authorization": f"Bearer {self.cfg['api_key']}"}
+        with open(wav_path, "rb") as f:
+            files = {"file": ("voice.wav", f, "audio/wav")}
+            data = {
+                "model": self.cfg["model"],
+                "language": mode.language,
+                "temperature": str(self.cfg.get("temperature", 0.0)),
+                "response_format": "text",
+                "prompt": mode.prompt,
+            }
+            if mode.translate_to_english:
+                url = url.replace("/transcriptions", "/translations")
+                data.pop("language", None)
+            r = requests.post(url, headers=headers, files=files, data=data, timeout=30)
+        r.raise_for_status()
+        return r.text.strip()
+
+
+class GroqProvider(TranscribeProvider):
+    """Groq API 與 OpenAI 格式相容"""
+    name = "groq"
+
+    def transcribe(self, wav_path, mode):
+        return OpenAIProvider.transcribe(self, wav_path, mode)
+
+
+class GrokProvider(TranscribeProvider):
+    """xAI Grok STT — https://api.x.ai/v1/stt
+    欄位：file（最後）、language、keyterm（可重複，對應 prompt 關鍵詞）
+    無 model 欄位；回應：JSON {"text":"...", "language":"...", "duration":N}
+    """
+    name = "grok"
+
+    def transcribe(self, wav_path, mode):
+        url = self.cfg["endpoint"]
+        headers = {"Authorization": f"Bearer {self.cfg['api_key']}"}
+        lang = "en" if mode.translate_to_english else mode.language
+        # keyterm：從 prompt 中擷取逗號分隔的關鍵字（最多 100 個，每個最多 50 字元）
+        keyterms = [kw.strip() for kw in mode.prompt.split(",") if kw.strip()][:10]
+        # multipart 手動組裝，確保 file 在最後
+        fields = [("language", lang)]
+        for kt in keyterms:
+            if len(kt) <= 50:
+                fields.append(("keyterm", kt))
+        with open(wav_path, "rb") as f:
+            files = {"file": ("voice.wav", f, "audio/wav")}
+            r = requests.post(
+                url, headers=headers,
+                data=fields,
+                files=files,
+                timeout=30,
+            )
+        r.raise_for_status()
+        try:
+            return r.json().get("text", "").strip()
+        except ValueError:
+            return r.text.strip()
+
+
+def build_provider(api_cfg: dict) -> TranscribeProvider:
+    name = api_cfg.get("provider", "grok").lower()
+    sub = dict(api_cfg.get(name, {}))
+    sub["temperature"] = api_cfg.get("temperature", 0.0)
+    if not sub.get("api_key"):
+        raise RuntimeError(f"❌ {name} provider 缺少 api_key（請設定對應環境變數）")
+    return {
+        "openai": OpenAIProvider,
+        "grok": GrokProvider,
+        "groq": GroqProvider,
+    }[name](sub)
 
 
 # ---------------------------------------------------------------------------
@@ -232,35 +479,6 @@ class AudioRecorder:
     @property
     def buffer_samples(self) -> int:
         return sum(len(f) for f in self._frames)
-
-
-# ---------------------------------------------------------------------------
-# Whisper API
-# ---------------------------------------------------------------------------
-
-def transcribe(wav_path: str, config: dict) -> str:
-    url = "https://api.openai.com/v1/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {config['api_key']}"}
-
-    # gpt-4o-transcribe 不支援 response_format=json，統一改用 text
-    # whisper-1 也支援 text，直接回傳純文字，解析更簡單
-    with open(wav_path, "rb") as f:
-        files = {"file": ("voice.wav", f, "audio/wav")}
-        data = {
-            "model": config["model"],
-            "language": config["language"],
-            "temperature": str(config["temperature"]),
-            "response_format": "text",
-            "prompt": config["prompt"],
-        }
-        response = requests.post(url, headers=headers, files=files, data=data, timeout=30)
-
-    if not response.ok:
-        print(f"❌ API 回應錯誤 HTTP {response.status_code}: {response.text[:200]}")
-    response.raise_for_status()
-
-    # response_format=text 直接回傳純文字（非 JSON）
-    return response.text.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -319,6 +537,172 @@ def paste_text(text: str):
 
 
 # ---------------------------------------------------------------------------
+# HUD（浮動視窗）
+# ---------------------------------------------------------------------------
+
+class HUD:
+    """tkinter 浮動 HUD，顯示模式 + 錄音狀態，點擊展開選單切換模式。"""
+
+    STATE_TEXT = {
+        "idle":       ("⏸", "#888888"),
+        "recording":  ("🔴", "#ff3b30"),
+        "processing": ("🔄", "#ff9500"),
+        "error":      ("⚠️", "#ff3b30"),
+    }
+
+    def __init__(self, mode_manager: "ModeManager", ui_cfg: dict, on_quit):
+        self.mm = mode_manager
+        self.ui = ui_cfg
+        self.on_quit = on_quit
+        self._state = "idle"
+        self._root = None
+        self._main_label = None
+        self._state_label = None
+        self._menu_window = None
+        self._ready = threading.Event()
+
+    def start(self):
+        threading.Thread(target=self._run, daemon=True).start()
+        self._ready.wait(timeout=3)
+        self.mm.on_change(lambda mode: self._schedule(self._render))
+
+    def _run(self):
+        import tkinter as tk
+        self._tk = tk
+        self._root = tk.Tk()
+        self._root.overrideredirect(True)
+        self._root.attributes("-topmost", True)
+        self._root.attributes("-alpha", self.ui.get("hud_opacity", 0.9))
+        self._root.configure(bg="#1c1c1e")
+
+        frame = tk.Frame(self._root, bg="#1c1c1e", padx=12, pady=6)
+        frame.pack()
+
+        font_size = self.ui.get("hud_font_size", 14)
+        self._main_label = tk.Label(
+            frame, text="", fg="white", bg="#1c1c1e",
+            font=("Helvetica", font_size, "bold"), cursor="hand2",
+        )
+        self._main_label.pack(side="left", padx=(0, 8))
+        self._main_label.bind("<Button-1>", lambda e: self._toggle_menu())
+
+        self._state_label = tk.Label(
+            frame, text="⏸", fg="#888888", bg="#1c1c1e",
+            font=("Helvetica", font_size + 2),
+        )
+        self._state_label.pack(side="left")
+
+        self._root.bind("<Button-3>", lambda e: self.on_quit())
+
+        self._place_window()
+        self._render()
+        self._ready.set()
+        self._root.mainloop()
+
+    def _place_window(self):
+        self._root.update_idletasks()
+        w = self._root.winfo_reqwidth()
+        h = self._root.winfo_reqheight()
+        sw = self._root.winfo_screenwidth()
+        sh = self._root.winfo_screenheight()
+        pos = self.ui.get("hud_position", "bottom-right")
+        ox = self.ui.get("hud_offset_x", 20)
+        oy = self.ui.get("hud_offset_y", 20)
+        if pos == "bottom-right":
+            x, y = sw - w - ox, sh - h - oy - 30
+        elif pos == "top-right":
+            x, y = sw - w - ox, oy + 30
+        elif pos == "top-left":
+            x, y = ox, oy + 30
+        else:
+            x, y = ox, sh - h - oy - 30
+        self._root.geometry(f"+{x}+{y}")
+
+    def _render(self):
+        if not self._main_label:
+            return
+        mode = self.mm.current
+        self._main_label.config(text=mode.display)
+        icon, color = self.STATE_TEXT.get(self._state, self.STATE_TEXT["idle"])
+        self._state_label.config(text=icon, fg=color)
+        self._place_window()
+
+    def set_state(self, state: str):
+        self._state = state
+        self._schedule(self._render)
+
+    def _schedule(self, fn):
+        if self._root:
+            self._root.after(0, fn)
+
+    def _toggle_menu(self):
+        if self._menu_window and self._menu_window.winfo_exists():
+            self._close_menu()
+        else:
+            self._open_menu()
+
+    def _open_menu(self):
+        tk = self._tk
+        self._menu_window = tk.Toplevel(self._root)
+        self._menu_window.overrideredirect(True)
+        self._menu_window.attributes("-topmost", True)
+        self._menu_window.configure(bg="#2c2c2e")
+
+        font_size = self.ui.get("hud_font_size", 14)
+        current_id = self.mm.current.id
+        for mode in self.mm.all:
+            mark = " ✓" if mode.id == current_id else "  "
+            label = tk.Label(
+                self._menu_window,
+                text=f"{mode.display}{mark}",
+                fg="white", bg="#2c2c2e",
+                font=("Helvetica", font_size),
+                padx=14, pady=6, anchor="w", cursor="hand2",
+            )
+            label.pack(fill="x")
+            label.bind("<Enter>", lambda e, w=label: w.config(bg="#3a3a3c"))
+            label.bind("<Leave>", lambda e, w=label: w.config(bg="#2c2c2e"))
+            label.bind("<Button-1>", lambda e, mid=mode.id: self._select_mode(mid))
+
+        sep = tk.Frame(self._menu_window, height=1, bg="#48484a")
+        sep.pack(fill="x", padx=8, pady=2)
+        quit_label = tk.Label(
+            self._menu_window, text="❌ 結束程式",
+            fg="#ff453a", bg="#2c2c2e",
+            font=("Helvetica", font_size),
+            padx=14, pady=6, anchor="w", cursor="hand2",
+        )
+        quit_label.pack(fill="x")
+        quit_label.bind("<Button-1>", lambda e: self.on_quit())
+
+        self._root.update_idletasks()
+        self._menu_window.update_idletasks()
+        rx = self._root.winfo_rootx()
+        ry = self._root.winfo_rooty()
+        mh = self._menu_window.winfo_reqheight()
+        self._menu_window.geometry(f"+{rx}+{ry - mh - 4}")
+
+        self._menu_window.bind("<FocusOut>", lambda e: self._close_menu())
+        self._menu_window.focus_set()
+
+    def _close_menu(self):
+        if self._menu_window:
+            try:
+                self._menu_window.destroy()
+            except Exception:
+                pass
+            self._menu_window = None
+
+    def _select_mode(self, mode_id: str):
+        self.mm.set_by_id(mode_id)
+        self._close_menu()
+
+    def shutdown(self):
+        if self._root:
+            self._schedule(self._root.destroy)
+
+
+# ---------------------------------------------------------------------------
 # 主程式
 # ---------------------------------------------------------------------------
 
@@ -329,46 +713,59 @@ def main():
 
     # ── 2. 載入設定 ──
     config = load_config()
+    mode_manager = ModeManager(config["modes"], config["default_mode_id"])
 
-    if not config["api_key"] or config["api_key"] == "YOUR_OPENAI_API_KEY_HERE":
-        print("❌ 錯誤：請設定 OPENAI_API_KEY")
-        print("   方法 1：在 env.local（或 .env.local）中設定 OPENAI_API_KEY=你的Key")
-        print("   方法 2：在 config.json 中填入 openai_api_key")
+    try:
+        provider = build_provider(config["api"])
+    except (RuntimeError, KeyError) as e:
+        print(f"❌ Provider 初始化失敗：{e}")
         sys.exit(1)
 
     # ── 3. macOS 選單列圖示（可選） ──
     try_start_menubar()
 
-    # ── 4. 初始化錄音 ──
+    # ── 4. HUD ──
+    hud = None
+    if config["ui"]["hud_enabled"]:
+        hud = HUD(mode_manager, config["ui"], on_quit=lambda: os._exit(0))
+        hud.start()
+
+    def set_state(s: str):
+        set_menubar_state(s)
+        if hud:
+            hud.set_state(s)
+
+    # ── 5. 初始化錄音 ──
     recorder = AudioRecorder(
-        sample_rate=config["sample_rate"],
-        channels=config["channels"],
+        sample_rate=config["recording"]["sample_rate"],
+        channels=config["recording"]["channels"],
     )
-    recording = False
+    recording_flag = False
     lock = threading.Lock()
 
     print("=" * 50)
     print("🎤 Whisper 語音轉文字工具已啟動（macOS）")
-    print(f"   熱鍵：按住 {config['hotkey'].upper()} 說話，放開後自動辨識")
-    print(f"   語言：{config['language']}")
-    print("   結束：Ctrl+C")
+    print(f"   錄音熱鍵：按住 {config['hotkey']['record_key'].upper()}")
+    print(f"   切換模式：{config['hotkey']['mode_cycle_key'].upper()} 或點 HUD")
+    print(f"   Provider：{provider.name}")
+    print(f"   目前模式：{mode_manager.current.display}")
+    print("   結束：Ctrl+C 或 HUD 右鍵")
     print("=" * 50)
 
-    # ── 5. 熱鍵偵測 ──
+    # ── 6. 熱鍵偵測 ──
     from pynput import keyboard
 
-    # F1-F20 全部映射（避免 F13+ 找不到的問題）
-    hotkey_map = {}
-    for i in range(1, 21):
-        attr = f"f{i}"
-        if hasattr(keyboard.Key, attr):
-            hotkey_map[attr] = getattr(keyboard.Key, attr)
-    target_key = hotkey_map.get(config["hotkey"].lower(), keyboard.Key.f9)
+    hotkey_map = {
+        f"f{i}": getattr(keyboard.Key, f"f{i}")
+        for i in range(1, 21) if hasattr(keyboard.Key, f"f{i}")
+    }
+    record_key = hotkey_map.get(config["hotkey"]["record_key"].lower(), keyboard.Key.f9)
+    cycle_key = hotkey_map.get(config["hotkey"]["mode_cycle_key"].lower(), keyboard.Key.f10)
 
     def _do_start_recording():
         """背景執行緒：啟動錄音 + 等待 beep，不阻塞監聽器"""
-        set_menubar_state("recording")
-        print("🔴 錄音中... （放開按鍵停止）")
+        set_state("recording")
+        print(f"🔴 錄音中... [模式：{mode_manager.current.display}]（放開按鍵停止）")
         recorder.start()
         for _ in range(60):
             time.sleep(0.05)
@@ -380,68 +777,72 @@ def main():
         """背景執行緒：停止錄音 → 辨識 → 貼上，不阻塞監聽器"""
         wav_path = recorder.stop()
         if not wav_path:
-            set_menubar_state("idle")
+            set_state("idle")
             print("⚠️  錄音時間太短，已忽略")
             return
 
-        set_menubar_state("processing")
-        print("🔄 辨識中...")
+        set_state("processing")
+        mode = mode_manager.current
+        print(f"🔄 辨識中... [{mode.display}]")
 
         try:
-            raw_text = transcribe(wav_path, config)
-        except requests.exceptions.HTTPError as e:
+            raw_text = provider.transcribe(wav_path, mode)
+        except requests.HTTPError as e:
             status = e.response.status_code if e.response else "?"
             msg = {401: "API Key 無效", 403: "API Key 權限不足", 429: "請求過於頻繁"}.get(
                 status, f"API 錯誤 HTTP {status}"
             )
             print(f"❌ {msg}")
-            set_menubar_state("error")
+            set_state("error")
             time.sleep(2)
-            set_menubar_state("idle")
+            set_state("idle")
             return
         except requests.exceptions.Timeout:
             print("❌ 網路逾時")
-            set_menubar_state("error")
+            set_state("error")
             time.sleep(2)
-            set_menubar_state("idle")
+            set_state("idle")
             return
         except Exception as e:
             print(f"❌ 發生錯誤：{e}")
-            set_menubar_state("error")
+            set_state("error")
             time.sleep(2)
-            set_menubar_state("idle")
+            set_state("idle")
             return
 
-        final_text = apply_corrections(raw_text, config["regex_rules"])
+        final_text = apply_corrections(raw_text, mode.regex_rules)
         if not final_text:
             print("⚠️  辨識結果為空")
-            set_menubar_state("idle")
+            set_state("idle")
             return
 
         paste_text(final_text)
         print(f"✅ 已貼上：{final_text}")
-        set_menubar_state("idle")
+        set_state("idle")
 
     def on_press(key):
-        nonlocal recording
-        if key != target_key:
+        nonlocal recording_flag
+        # F10：切換模式
+        if key == cycle_key:
+            mode_manager.cycle()
+            print(f"🔀 模式 → {mode_manager.current.display}")
+            return
+        if key != record_key:
             return
         with lock:
-            if recording:
-                return          # 按鍵重複事件：直接忽略
-            recording = True
-        # 用背景執行緒啟動錄音，on_press 立即返回，不再阻塞監聽器
+            if recording_flag:
+                return
+            recording_flag = True
         threading.Thread(target=_do_start_recording, daemon=True).start()
 
     def on_release(key):
-        nonlocal recording
-        if key != target_key:
+        nonlocal recording_flag
+        if key != record_key:
             return
         with lock:
-            if not recording:
+            if not recording_flag:
                 return
-            recording = False
-        # 用背景執行緒處理辨識+貼上，on_release 立即返回
+            recording_flag = False
         threading.Thread(target=_do_process_recording, daemon=True).start()
 
     with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:

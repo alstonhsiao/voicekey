@@ -314,37 +314,74 @@ python main.py
 
 ---
 
-### 方案六：Whisper（macOS）
+### 方案六：Grok / Whisper STT（macOS）✨ 最新
 
-> macOS 原生版本，使用 OpenAI Whisper API，等同將方案三移植到 macOS
+> macOS 原生版本。預設使用 **xAI Grok STT**（比 OpenAI 快 ~32%），可在 config.json 切換為 OpenAI / Groq。
+> 新增**浮動 HUD 視窗**與**四種辨識模式**，點 HUD 或按 F10 即可切換。
 
-**需要：** [OpenAI API Key](https://platform.openai.com/api-keys)
+**需要（擇一）：**
+- [xAI API Key](https://console.x.ai/)（推薦，`XAI_API_KEY`）
+- [OpenAI API Key](https://platform.openai.com/api-keys)（`OPENAI_API_KEY`）
+- [Groq API Key](https://console.groq.com/)（`GROQ_API_KEY`）
 
 ---
 
-#### 完整安裝與啟動步驟（第一次）
+#### 新功能一覽
+
+| 功能 | 說明 |
+|---|---|
+| 🪟 **浮動 HUD** | 右下角常駐，隨時看到錄音狀態（⏸ / 🔴 / 🔄 / ⚠️） |
+| 📝 **四種模式** | 直接轉錄 / 中翻英 / 專業模式 / 一般對話 |
+| 🔀 **F10 切換** | 按 F10 循環切換模式（不需移動滑鼠） |
+| 🖱️ **點 HUD 選單** | 點 HUD 展開下拉選單，直接選目標模式 |
+| ⚡ **Grok STT** | 平均 0.97s（vs OpenAI 1.43s），延遲更穩定 |
+| 🔌 **Provider 切換** | config.json 一行切換 grok / openai / groq |
+
+---
+
+#### 辨識模式說明
+
+| 模式 | 熱鍵 | 行為 |
+|---|---|---|
+| 📝 直接轉錄 | F10 循環 | 繁體中文忠實輸出，含個人術語 |
+| 🌐 中翻英 | F10 循環 | 說中文，輸出英文 |
+| 💼 專業模式 | F10 循環 | 技術術語（API, Docker, n8n 等）保留英文 |
+| 💬 一般對話 | F10 循環 | 口語化輸出 |
+
+---
+
+#### 完整安裝步驟（第一次）
 
 **步驟 1：進入方案六目錄**
 ```bash
-cd /Users/alston/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos
+cd approach-6-whisper-macos
 ```
 
-**步驟 2：建立虛擬環境（只需做一次）**
+**步驟 2：建立虛擬環境**
 ```bash
 python3 -m venv .venv
 ```
 
-**步驟 3：安裝套件（只需做一次）**
+**步驟 3：安裝套件**
 ```bash
-.venv/bin/pip install sounddevice soundfile numpy requests pynput pyperclip rumps
+.venv/bin/pip install -r requirements.txt
 ```
 
-**步驟 4：設定 API Key（只需做一次）**
+**步驟 4：設定 API Key**
 
-確認專案根目錄的 `env.local`（或 `.env.local`）已有你的 Key：
+編輯專案根目錄的 `env.local`，加入你的 Key：
 ```bash
-cat /Users/alston/Documents/AntiGravity/windows_Whisper/env.local
-# 應看到 OPENAI_API_KEY=sk-...
+# 選擇一個 provider 填入即可
+XAI_API_KEY=xai-你的Key      ← 推薦（最快）
+OPENAI_API_KEY=sk-你的Key    ← 備用
+GROQ_API_KEY=gsk_你的Key     ← 備用（免費額度較多）
+```
+
+並確認 `config.json` 的 `api.provider` 對應你填的 Key：
+```json
+"api": { "provider": "grok" }   ← 對應 XAI_API_KEY
+"api": { "provider": "openai" } ← 對應 OPENAI_API_KEY
+"api": { "provider": "groq" }   ← 對應 GROQ_API_KEY
 ```
 
 **步驟 5：啟動程式**
@@ -354,11 +391,13 @@ cat /Users/alston/Documents/AntiGravity/windows_Whisper/env.local
 
 ---
 
-#### 之後每次要用只需這一行
+#### 每次啟動（一行指令）
 
 ```bash
-cd /Users/alston/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos && .venv/bin/python main.py
+cd /path/to/windows_Whisper/approach-6-whisper-macos && .venv/bin/python main.py
 ```
+
+> **建議：** 存成 `.command` 檔或加進 Raycast/Alfred，雙擊即啟動。
 
 ---
 
@@ -369,12 +408,11 @@ cd /Users/alston/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos 
 | 授權項目 | 用途 |
 |---|---|
 | 麥克風 | 錄音 |
-| 輔助使用 (Accessibility) | pynput 模擬鍵盤 |
-| 輸入監控 (Input Monitoring) | 偵測 F9 按鍵 |
+| 輔助使用 (Accessibility) | osascript 發送 Cmd+V |
+| 輸入監控 (Input Monitoring) | 偵測 F9 / F10 按鍵 |
 
-> 如果授權後程式沒反應，**關掉重新執行一次**（macOS 授權後需重啟程式生效）。
->
-> 授權位置：**系統設定 → 隱私權與安全性 → 輔助使用 / 輸入監控**，確認終端機（Terminal）已打勾。
+> 授權後需**重新啟動程式**才會生效。
+> 位置：**系統設定 → 隱私權與安全性 → 輔助使用 / 輸入監控**，確認 Terminal 已打勾。
 
 ---
 
@@ -383,8 +421,10 @@ cd /Users/alston/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos 
 | 動作 | 說明 |
 |---|---|
 | 按住 **F9** | 開始錄音（等 beep 聲才說話）|
-| 放開 **F9** | 停止錄音 → 自動辨識 → 貼到游標位置 |
-| **Ctrl+C** | 結束程式 |
+| 放開 **F9** | 停止錄音 → 辨識 → 貼到游標位置 |
+| 按 **F10** | 切換辨識模式（循環） |
+| 點 **HUD 主標籤** | 展開模式選單 |
+| **HUD 右鍵** | 結束程式 |
 
 ---
 
@@ -572,16 +612,19 @@ python test_api_key.py
 
 | | 方案一 | 方案二 | 方案三 | 方案四 | 方案五 | 方案六 |
 |---|---|---|---|---|---|---|
-| **名稱** | Python+uv | AHK+MCI | Python .exe | Gemini Win | Gemini Mac | Whisper Mac |
+| **名稱** | Python+uv | AHK+MCI | Python .exe | Gemini Win | Gemini Mac | Grok/Whisper Mac |
 | **平台** | Windows | Windows | Windows | Windows | macOS | macOS |
-| **辨識引擎** | Whisper | Whisper | Whisper | Gemini 1.5 Flash | Gemini 1.5 Flash | Whisper |
-| **API Key** | OpenAI | OpenAI | OpenAI | Google | Google | OpenAI |
+| **辨識引擎** | Whisper | Whisper | Whisper | Gemini 1.5 Flash | Gemini 1.5 Flash | Grok STT / Whisper / Groq |
+| **API Key** | OpenAI | OpenAI | OpenAI | Google | Google | xAI / OpenAI / Groq |
 | **安裝門檻** | 需裝 uv | 需裝 AHK v2 | 雙擊 exe 即用 | 需裝 Python | 需裝 Python | 需裝 Python |
-| **檔案大小** | ~1KB | ~10KB | ~30-50MB | ~5KB | ~5KB | ~5KB |
-| **常駐 RAM** | ~30MB | ~3-5MB | ~30MB | ~30MB | ~30MB | ~30MB |
-| **系統匣/選單列** | ❌ | ✅ AHK | ✅ pystray | ✅ pystray | ✅ rumps（可選）| ✅ rumps（可選）|
+| **檔案大小** | ~1KB | ~10KB | ~30-50MB | ~5KB | ~5KB | ~10KB |
+| **常駐 RAM** | ~30MB | ~3-5MB | ~30MB | ~30MB | ~30MB | ~35MB |
+| **系統匣/選單列** | ❌ | ✅ AHK | ✅ pystray | ✅ pystray | ✅ rumps（可選）| ✅ rumps + HUD |
+| **浮動 HUD** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| **多模式切換** | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ 4 種 |
 | **可打包** | ❌ | ❌ | ✅ .exe | ✅ .exe | ❌ | ❌ |
-| **適合場景** | 快速驗證 | 輕量 fallback | 分發給同事 | Gemini 使用者 | macOS + Gemini | macOS + Whisper |
+| **API 速度** | ~1.4s | ~1.4s | ~1.4s | ~1.5s | ~1.5s | **~1.0s**（Grok）|
+| **適合場景** | 快速驗證 | 輕量 fallback | 分發給同事 | Gemini 使用者 | macOS + Gemini | macOS 主力工具 ✨ |
 
 ### Whisper vs Gemini 1.5 Flash 差異
 
