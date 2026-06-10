@@ -2,6 +2,36 @@
 
 ## Recent Progress
 
+### 2026-06-10 — approach-6-whisper-macos：繁體保險層 + debug log
+
+#### 變更
+- `approach-6-whisper-macos/requirements.txt`：
+  - 新增 `opencc-python-reimplemented`，用於 LLM 後簡轉繁保險層。
+- `approach-6-whisper-macos/main.py`：
+  - 新增 OpenCC 載入與 `s2twp` 轉換器初始化。
+  - 新增 `needs_traditional_normalization()` / `normalize_traditional_text()`，在 LLM 後偵測常見簡體字並做簡轉繁。
+  - 新增 debug log：`raw STT`、`regex corrected`、`LLM corrected`、`normalized zh-TW`，便於判斷哪一層出了問題。
+  - 英文翻譯模式 (`zh2en`) 不套用繁體正規化，避免誤傷英文輸出。
+
+#### 驗證
+- `./.venv/bin/python -m py_compile main.py` 通過。
+- `opencc-python-reimplemented` 已安裝到 `approach-6-whisper-macos/.venv`。
+
+### 2026-06-10 — approach-6-whisper-macos：自動貼上與模式切換可用性修正
+
+#### 變更
+- `approach-6-whisper-macos/main.py`：
+  - `paste_text()` 改回以 AppleScript `activate + keystroke` 為主流程，符合既有 macOS 貼上治理做法。
+  - 新增貼上 debug log：`paste target app` 與 `paste method`，方便判斷是授權問題還是焦點問題。
+  - 新增 `mode_cycle_modifier`，將模式切換熱鍵改為 `Ctrl+F10`，避開 macOS 對單獨 `F10` 的常見攔截。
+- `approach-6-whisper-macos/config.json`：
+  - `hotkey.mode_cycle_modifier = "ctrl"`。
+- `approach-6-whisper-macos/啟動語音輸入.command`：
+  - 啟動前主動 `activate Terminal`，讓 debug log 視窗跳到前景。
+
+#### 驗證
+- `./.venv/bin/python -m py_compile main.py` 通過。
+
 ### 2026-06-10 — approach-6-whisper-macos：Cerebras LLM 雙層語音修正整合
 
 **完成 Phases 0–5（plan20260610.md）**

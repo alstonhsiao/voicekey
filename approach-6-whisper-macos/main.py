@@ -33,11 +33,13 @@ import ctypes
 import json
 import os
 import re
+import sqlite3
 import subprocess
 import sys
 import tempfile
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -508,6 +510,7 @@ class CerebrasProvider(LLMCorrectionProvider):
         self.cfg = cfg
 
     def correct(self, text: str, mode: Mode) -> str:
+        self.last_finish_reason: str | None = None
         if not mode.llm_prompt or not text:
             return text
         try:
@@ -528,7 +531,11 @@ class CerebrasProvider(LLMCorrectionProvider):
             r = requests.post(url, headers=headers, json=data, timeout=15)
             r.raise_for_status()
             res = r.json()
-            return res["choices"][0]["message"]["content"].strip()
+            choice = res["choices"][0]
+            self.last_finish_reason = choice.get("finish_reason")
+            if self.last_finish_reason == "length":
+                print(f"⚠️  Cerebras 輸出被截斷（finish_reason=length，max_tokens={self.cfg.get('max_tokens', 512)}）")
+            return choice["message"]["content"].strip()
         except Exception as e:
             print(f"⚠️  Cerebras 修正失敗（{e}），使用原始文字")
             return text  # fallback：返回未修正的文字
@@ -640,6 +647,74 @@ def build_llm_correction_provider(api_cfg: dict) -> LLMCorrectionProvider | None
 
 
 # ---------------------------------------------------------------------------
+# Session Logger（SQLite）
+# ---------------------------------------------------------------------------
+
+def _now() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class SessionLogger:
+    """每次辨識完成後記錄一筆到 SQLite，方便後續 bug 追蹤與改善分析。"""
+
+    DB_PATH = Path.home() / ".whisper_voice_log.db"
+
+    _CREATE_SQL = """
+    CREATE TABLE IF NOT EXISTS sessions (
+        id           INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp    TEXT    NOT NULL,
+        mode_id      TEXT,
+        mode_name    TEXT,
+        provider     TEXT,
+        audio_sec    REAL,
+        raw_stt      TEXT,
+        regex_out    TEXT,
+        llm_out      TEXT,
+        final_text   TEXT,
+        stt_ms       INTEGER,
+        llm_ms       INTEGER,
+        paste_method TEXT,
+        paste_ok     INTEGER,
+        error_type   TEXT,
+        error_detail TEXT
+    )
+    """
+
+    def __init__(self):
+        self._conn = sqlite3.connect(str(self.DB_PATH), check_same_thread=False)
+        self._lock = threading.Lock()
+        self._conn.execute(self._CREATE_SQL)
+        self._conn.commit()
+        self._migrate()
+        print(f"📊 Session log: {self.DB_PATH}")
+
+    def _migrate(self):
+        new_cols = [
+            ("llm_finish_reason", "TEXT"),
+        ]
+        for col, col_type in new_cols:
+            try:
+                self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {col} {col_type}")
+                self._conn.commit()
+            except sqlite3.OperationalError:
+                pass  # 欄位已存在
+
+    def log(self, **kwargs):
+        cols = list(kwargs.keys())
+        vals = list(kwargs.values())
+        sql = (
+            f"INSERT INTO sessions ({', '.join(cols)}) "
+            f"VALUES ({', '.join(['?'] * len(cols))})"
+        )
+        try:
+            with self._lock:
+                self._conn.execute(sql, vals)
+                self._conn.commit()
+        except Exception as e:
+            print(f"⚠️  session log 寫入失敗（{e}）")
+
+
+# ---------------------------------------------------------------------------
 # 錄音模組
 # ---------------------------------------------------------------------------
 
@@ -668,7 +743,7 @@ class AudioRecorder:
         if self.is_recording:
             self._frames.append(indata.copy())
 
-    def stop(self) -> str | None:
+    def stop(self) -> tuple[str | None, float]:
         self.is_recording = False
         if self._stream:
             self._stream.stop()
@@ -676,16 +751,16 @@ class AudioRecorder:
             self._stream = None
 
         if not self._frames:
-            return None
+            return None, 0.0
 
         audio_data = np.concatenate(self._frames, axis=0)
         duration = len(audio_data) / self.sample_rate
         if duration < 0.5:
-            return None
+            return None, duration
 
         wav_path = os.path.join(tempfile.gettempdir(), "whisper_voice_mac.wav")
         sf.write(wav_path, audio_data, self.sample_rate, subtype="PCM_16")
-        return wav_path
+        return wav_path, duration
 
     @property
     def buffer_samples(self) -> int:
@@ -797,14 +872,13 @@ def get_frontmost_app() -> str:
         return ""
 
 
-def paste_text(text: str, target_app: str = ""):
+def paste_text(text: str, target_app: str = "") -> tuple[str, bool]:
     # 1. 寫入剪貼簿
     pyperclip.copy(text)
     time.sleep(0.1)
 
     # 方案 A（主）：osascript activate 目標 App → keystroke Cmd+V
     # 需要 macOS 輔助使用（Accessibility）權限；error 1002 = 未授權
-    pasted = False
     if target_app:
         print(f"🪵 paste target app: {target_app}")
         target_app_escaped = target_app.replace("\\", "\\\\").replace('"', '\\"')
@@ -816,32 +890,32 @@ def paste_text(text: str, target_app: str = ""):
             f'end tell'
         )
         result = subprocess.run(["osascript", "-e", script], capture_output=True)
-        pasted = (result.returncode == 0)
-        if not pasted:
-            stderr = result.stderr.decode().strip()
-            print(f"⚠️  osascript 自動貼上失敗（{stderr}）")
-            print("   請確認：系統設定 → 隱私權與安全性 → 輔助使用")
-            print("   啟動用的 App 需授權：Terminal / iTerm / PyCharm / VS Code")
-        else:
+        if result.returncode == 0:
             print("🪵 paste method: osascript")
+            return "osascript", True
+        stderr = result.stderr.decode().strip()
+        print(f"⚠️  osascript 自動貼上失敗（{stderr}）")
+        print("   請確認：系統設定 → 隱私權與安全性 → 輔助使用")
+        print("   啟動用的 App 需授權：Terminal / iTerm / PyCharm / VS Code")
 
     # 方案 B（fallback）：pynput 直送 Cmd+V
     # macOS 26+ 的 TSMGetInputSourceProperty 只能在主執行緒呼叫，
     # 需透過 GCD dispatch_async_f 排程，否則會從 _do_process_recording
     # 背景執行緒觸發 dispatch_assert_queue 斷言，導致 SIGTRAP 崩潰。
-    if not pasted:
-        def _pynput_cmd_v():
-            from pynput.keyboard import Controller, Key
-            kb = Controller()
-            kb.press(Key.cmd)
-            kb.press("v")
-            kb.release("v")
-            kb.release(Key.cmd)
+    def _pynput_cmd_v():
+        from pynput.keyboard import Controller, Key
+        kb = Controller()
+        kb.press(Key.cmd)
+        kb.press("v")
+        kb.release("v")
+        kb.release(Key.cmd)
 
-        if _run_on_main_thread(_pynput_cmd_v):
-            print("🪵 paste method: pynput (main thread)")
-        else:
-            print("⚠️  pynput 貼上失敗，文字已存入剪貼簿，請手動 Cmd+V")
+    if _run_on_main_thread(_pynput_cmd_v):
+        print("🪵 paste method: pynput (main thread)")
+        return "pynput", True
+
+    print("⚠️  pynput 貼上失敗，文字已存入剪貼簿，請手動 Cmd+V")
+    return "clipboard_only", False
 
 
 # ---------------------------------------------------------------------------
@@ -1061,6 +1135,8 @@ def main():
         print(f"❌ Provider 初始化失敗：{e}")
         sys.exit(1)
 
+    session_logger = SessionLogger()
+
     # ── 3. 建立 rumps app（不啟動，稍後在主執行緒執行）──
     rumps_app = build_menubar_app(mode_manager)
 
@@ -1149,7 +1225,7 @@ def main():
 
     def _do_process_recording(target_app: str = ""):
         """背景執行緒：停止錄音 → 辨識 → 貼上，不阻塞監聽器"""
-        wav_path = recorder.stop()
+        wav_path, audio_sec = recorder.stop()
         if not wav_path:
             set_state("idle")
             print("⚠️  錄音時間太短，已忽略")
@@ -1169,23 +1245,39 @@ def main():
             )
             print(f"❌ {msg}")
             set_state("error")
+            session_logger.log(
+                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                provider=provider.name, audio_sec=round(audio_sec, 2),
+                error_type="http_error", error_detail=f"HTTP {status}: {msg}",
+            )
             time.sleep(2)
             set_state("idle")
             return
         except requests.exceptions.Timeout:
             print("❌ 網路逾時")
             set_state("error")
+            session_logger.log(
+                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                provider=provider.name, audio_sec=round(audio_sec, 2),
+                error_type="timeout", error_detail="requests.Timeout",
+            )
             time.sleep(2)
             set_state("idle")
             return
         except Exception as e:
             print(f"❌ 發生錯誤：{e}")
             set_state("error")
+            session_logger.log(
+                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                provider=provider.name, audio_sec=round(audio_sec, 2),
+                error_type="unknown", error_detail=str(e),
+            )
             time.sleep(2)
             set_state("idle")
             return
 
-        t1 = time.time()
+        t_stt = time.time()
+        stt_ms = int((t_stt - t0) * 1000)
         print(f"🪵 raw STT: {raw_text}")
 
         corrected_text = apply_corrections(raw_text, mode.regex_rules)
@@ -1195,21 +1287,41 @@ def main():
             return
         print(f"🪵 regex corrected: {corrected_text}")
 
+        t_llm = time.time()
+        llm_finish_reason = None
         if llm_correction and mode.llm_prompt:
             llm_corrected_text = llm_correction.correct(corrected_text, mode)
+            llm_finish_reason = getattr(llm_correction, "last_finish_reason", None)
             print(f"🪵 LLM corrected: {llm_corrected_text}")
         else:
             llm_corrected_text = corrected_text
             print("🪵 LLM corrected: <skipped>")
+        llm_ms = int((time.time() - t_llm) * 1000)
 
         final_text = normalize_traditional_text(llm_corrected_text, mode)
 
-        t2 = time.time()
-        print(f"⏱  STT: {t1-t0:.2f}s  |  LLM: {t2-t1:.2f}s  |  total: {t2-t0:.2f}s")
+        print(f"⏱  STT: {stt_ms}ms  |  LLM: {llm_ms}ms  |  total: {int((time.time() - t0) * 1000)}ms")
 
-        paste_text(final_text, target_app)
+        paste_method, paste_ok = paste_text(final_text, target_app)
         print(f"✅ 已貼上：{final_text}")
         set_state("idle")
+
+        session_logger.log(
+            timestamp=_now(),
+            mode_id=mode.id,
+            mode_name=mode.name,
+            provider=provider.name,
+            audio_sec=round(audio_sec, 2),
+            raw_stt=raw_text,
+            regex_out=corrected_text,
+            llm_out=llm_corrected_text if (llm_correction and mode.llm_prompt) else None,
+            final_text=final_text,
+            stt_ms=stt_ms,
+            llm_ms=llm_ms if (llm_correction and mode.llm_prompt) else None,
+            paste_method=paste_method,
+            paste_ok=int(paste_ok),
+            llm_finish_reason=llm_finish_reason,
+        )
 
     def on_press(key):
         nonlocal recording_flag

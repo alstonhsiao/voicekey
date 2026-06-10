@@ -12,5 +12,6 @@ if [ -f "$PID_FILE" ]; then
 fi
 
 echo "🎤 啟動語音轉文字工具..."
+osascript -e 'tell application "Terminal" to activate' >/dev/null 2>&1
 cd "$APP_DIR"
 "$PYTHON" main.py
