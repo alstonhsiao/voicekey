@@ -3,8 +3,9 @@
 > Governance Hub for this project. Read this file first in every new session.
 
 ## Mission
-語音轉文字工具（Grok STT / Whisper / Gemini，多平台）。
+語音轉文字工具（Grok STT / Whisper / Groq，多平台）。
 macOS 主力方案：approach-6（rumps 選單列、四模式切換、multi-provider；macOS 26 相容）。
+Windows 封存方案：approach-3（Python + PyInstaller .exe，暫時封存，有空再維護）。
 架構：**Grok STT（第一層）→ Cerebras LLM（第二層修正）**，解決繁簡混用、字間空格、術語辨識問題。
 
 ## Always-On Rules
@@ -26,6 +27,54 @@ macOS 主力方案：approach-6（rumps 選單列、四模式切換、multi-prov
 | Operations | `agent-operations.md` | High-impact rules, execution order, validation baseline. |
 | Progress | `agent-progress.md` | Recent work, TODOs, unresolved items. |
 | Refactor Report | `agent-refactor-report.md` | Phase 1+2 governance refactor record and metrics. |
+
+## Repo 結構（精簡後）
+
+```
+windows_Whisper/
+├── approach-6-whisper-macos/   ← ✅ 唯一現役方案（macOS）
+│   ├── main.py                 ← 主程式（1,400 行）
+│   ├── config.json             ← 設定（api / modes / hotkey / ui）
+│   ├── requirements.txt        ← Python 依賴（待鎖版）
+│   ├── install.sh              ← 自動安裝腳本
+│   ├── install_manual.md       ← 手動安裝說明
+│   ├── 啟動語音輸入.command      ← 雙擊啟動
+│   └── 重啟語音輸入.command      ← 殺舊程序後重啟
+├── approach-3-python-exe/      ← 🗄️ 封存（Windows，有空再維護）
+│   ├── main.py
+│   ├── config.json
+│   ├── requirements.txt
+│   └── build.bat
+├── test_api_key.py             ← 手動測試 OpenAI/Grok/Groq 連線
+├── test_cerebras.py            ← 手動測試 Cerebras 連線
+└── env.local                  ← 機密設定（git-ignored，chmod 600）
+```
+
+> approach-1（Python+uv）、approach-2（AHK+MCI）、approach-4（Gemini Windows）、approach-5（Gemini macOS）已於 2026-06-12 刪除。
+> - approach-1/2/4/5 刪除原因：approach-2 有 Critical 命令注入風險；approach-4/5 依賴已退役的 gemini-1.5-flash（API 回 404）；approach-1 功能被 approach-3 取代。
+
+## 待處理的已知問題（安全審查產出，2026-06-12）
+
+優先度 P0（立即）：
+- [ ] `~/.whisper_voice_log.db` 權限應收斂為 600；main.py SessionLogger 建檔後加 `os.chmod(DB_PATH, 0o600)`
+- [ ] 刪除重複的根目錄 `.env.local`（`env.local` 為主，`.env.local` 是舊副本）
+
+優先度 P1（短期，approach-6）：
+- [ ] WAV 暫存改 `tempfile.NamedTemporaryFile` 隨機檔名，用後刪除（main.py:761）
+- [ ] PID/lock 檔移出 `/tmp` → `~/Library/Application Support/WhisperVoice/`
+- [ ] recorder race condition：辨識進行中以 busy flag 擋住新錄音（main.py:1345）
+- [ ] `requirements.txt` 鎖版（全改 `==` + `uv pip compile` 產 lock 檔）
+- [ ] install.sh：`read -rs` 靜默讀 key；建檔即 `chmod 600 "$ENV_FILE"`
+- [ ] .command 硬編碼絕對路徑 `/Users/alston/…` → 改 `$(cd "$(dirname "$0")" && pwd)`
+- [ ] 重啟語音輸入.command：kill 前比對 `ps -p $PID -o command=` 含 `main.py`，防誤殺
+
+優先度 P2（中期）：
+- [ ] approach-3 封存：修 build.bat 移除 `--add-data config.json`（金鑰打包風險）；requirements.txt 鎖版
+- [ ] approach-6 main.py 拆模組（audio / providers / hud / paste / config / app）
+- [ ] `print()` 全改 `logging` 模組（含 level + 檔案 handler）
+- [ ] config schema 驗證（缺欄位時給友善錯誤，而非 KeyError）
+- [ ] test_api_key.py / test_cerebras.py：API key 印出改為只印固定前綴 + 長度，不印任何秘密字元
+- [ ] install_manual.md 補 `opencc-python-reimplemented` 套件；同步 GROQ key 的 prompt_key
 
 ## Known Gotchas（踩過的坑）
 
@@ -67,6 +116,10 @@ macOS 主力方案：approach-6（rumps 選單列、四模式切換、multi-prov
 ### regex 不做主要修正
 - **決策**：regex 層（`apply_corrections`）僅保留作 fallback 兜底，不用於移除字間空格。
 - **原因**：regex 無法區分字元空格與句子邊界空格，會造成「耶用」此類誤合。全部交由 LLM 處理。
+
+### SQLite session log 權限
+- **風險**：`~/.whisper_voice_log.db` 記錄所有口述文字，預設建檔權限 644（同機他人可讀）
+- **待修**：P0 待辦，main.py SessionLogger 建檔後補 `os.chmod(DB_PATH, 0o600)`
 
 ## Escalation & Review
 - `NEED_REVIEW`: conflicting specs, missing credentials, or potentially destructive changes.
