@@ -18,8 +18,8 @@ approach-6 是唯一現役方案（macOS 26 相容）。approach-3 已封存（W
 | `approach-6-whisper-macos/INDEX.md` | 模組路由文件（讀此再鑽入程式碼） |
 | `approach-3-python-exe/` | 封存方案（Windows，勿修改） |
 | `env.local` | API keys（OPENAI / GROK / GROQ / CEREBRAS），git-ignored |
-| `test_api_key.py` | 驗證 OpenAI / Grok / Groq 連線 |
-| `test_cerebras.py` | 驗證 Cerebras 連線 |
+| `scripts/test_api_key.py` | 驗證 OpenAI / Grok / Groq 連線 |
+| `scripts/test_cerebras.py` | 驗證 Cerebras 連線 |
 | `todo.md` | 中/低優先未完成項目（NativeHUD、approach-7 等） |
 
 ## Scope Boundaries

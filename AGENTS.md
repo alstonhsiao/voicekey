@@ -23,12 +23,12 @@
 ## Quick Map
 | Spoke | Path | When to Read |
 |---|---|---|
-| Context | `agent-context.md` | Stack profile, key paths, current module overview. |
-| Operations | `agent-operations.md` | Non-negotiable rules, execution order, validation. |
-| Progress | `agent-progress.md` | Recent work, open TODOs, unresolved items. |
-| Gotchas | `agent-gotchas.md` | Known bugs, macOS quirks, API limits, confirmed fixes. |
+| Context | `docs/agent-context.md` | Stack profile, key paths, current module overview. |
+| Operations | `docs/agent-operations.md` | Non-negotiable rules, execution order, validation. |
+| Progress | `docs/agent-progress.md` | Recent work, open TODOs, unresolved items. |
+| Gotchas | `docs/agent-gotchas.md` | Known bugs, macOS quirks, API limits, confirmed fixes. |
 | Code Index | `approach-6-whisper-macos/INDEX.md` | Module routing map — read before opening source files. |
-| Refactor Report | `agent-refactor-report.md` | Historical governance refactor record (archive). |
+| Refactor Report | `docs/agent-refactor-report.md` | Historical governance refactor record (archive). |
 
 ## Key Architecture Decisions
 - **Grok STT 無 `prompt` 欄位**：用 `keyterm` 傳詞彙 hint；繁簡轉換與所有修正全交由 Cerebras LLM 第二層。

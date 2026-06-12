@@ -153,10 +153,10 @@ build.bat
 
 ```bash
 # OpenAI / xAI / Groq
-python test_api_key.py
+python scripts/test_api_key.py
 
 # Cerebras
-python test_cerebras.py
+python scripts/test_cerebras.py
 ```
 
 ---
@@ -260,10 +260,10 @@ Ctrl+F1（第二下）
 | 文件 | 用途 |
 |---|---|
 | [AGENTS.md](AGENTS.md) | Governance hub — 每個 session 先讀 |
-| [agent-context.md](agent-context.md) | 專案堆疊、路徑、scope |
-| [agent-operations.md](agent-operations.md) | 不可妥協規則、驗證基線 |
-| [agent-gotchas.md](agent-gotchas.md) | macOS 已知問題、API 限制與修法 |
-| [agent-progress.md](agent-progress.md) | 近期進度、Open TODOs |
+| [docs/agent-context.md](docs/agent-context.md) | 專案堆疊、路徑、scope |
+| [docs/agent-operations.md](docs/agent-operations.md) | 不可妥協規則、驗證基線 |
+| [docs/agent-gotchas.md](docs/agent-gotchas.md) | macOS 已知問題、API 限制與修法 |
+| [docs/agent-progress.md](docs/agent-progress.md) | 近期進度、Open TODOs |
 | [approach-6-whisper-macos/INDEX.md](approach-6-whisper-macos/INDEX.md) | approach-6 模組路由文件 |
 
 ---
