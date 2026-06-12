@@ -2,6 +2,15 @@
 
 ## Recent Progress
 
+### 2026-06-12 — Security + Refactor（P0/P1/P2 完成）
+
+- P0：`~/.whisper_voice_log.db` chmod 600；刪除重複根目錄 `.env.local`
+- P1：WAV 暫存改隨機 NamedTemporaryFile；PID/lock 移至 `~/Library/Application Support/WhisperVoice/`；processing_flag 防 race condition；requirements.txt 全鎖版；install.sh 靜默讀 key + chmod 600；.command 改相對路徑；重啟腳本加 PID 比對防誤殺
+- P2：approach-3 封存修正（build.bat 移除金鑰打包風險）；approach-6 main.py 拆 9 模組；logging 模組取代 print；config schema 驗證；test scripts 不印秘密字元；install_manual.md 補套件
+- 詳見 git log：`edcbc22`、`dec3853`、`146ccc9`
+
+---
+
 ### 2026-06-10 — approach-6-whisper-macos：繁體保險層 + debug log
 
 #### 變更

@@ -82,7 +82,7 @@ CEREBRAS_API_KEY=csk-你的Key  ← 免費方案每天 1M tokens
 |---|---|
 | 按 **Ctrl+F1**（第一下）| 開始錄音（等 beep 聲才說話）|
 | 按 **Ctrl+F1**（第二下）| 停止錄音 → 辨識 → 貼到游標位置 |
-| 按 **F10** | 切換辨識模式（循環）|
+| 按 **Ctrl+F10** | 切換辨識模式（循環）|
 | 點選單列 **🎤 圖示** | 展開模式選單，直接選目標模式 |
 | 選單列 **❌ 結束程式** | 結束程式 |
 
@@ -252,6 +252,19 @@ Ctrl+F1（第二下）
 | OpenAI Whisper | $0.006 USD / 分鐘 |
 | Groq Whisper | 免費額度較多 |
 | Cerebras LLM | 免費方案每天 1M tokens |
+
+---
+
+## 開發者 / AI Agent 文件
+
+| 文件 | 用途 |
+|---|---|
+| [AGENTS.md](AGENTS.md) | Governance hub — 每個 session 先讀 |
+| [agent-context.md](agent-context.md) | 專案堆疊、路徑、scope |
+| [agent-operations.md](agent-operations.md) | 不可妥協規則、驗證基線 |
+| [agent-gotchas.md](agent-gotchas.md) | macOS 已知問題、API 限制與修法 |
+| [agent-progress.md](agent-progress.md) | 近期進度、Open TODOs |
+| [approach-6-whisper-macos/INDEX.md](approach-6-whisper-macos/INDEX.md) | approach-6 模組路由文件 |
 
 ---
 
