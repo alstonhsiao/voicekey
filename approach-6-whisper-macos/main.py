@@ -60,12 +60,14 @@ except ImportError:
 
 _lock_file_handle = None
 
-
-_PID_FILE = Path("/tmp/WhisperVoice.pid")
+# PID / lock 檔放在使用者私有目錄，避免 /tmp 共用目錄的競態與 symlink 風險
+_APP_SUPPORT_DIR = Path.home() / "Library" / "Application Support" / "WhisperVoice"
+_PID_FILE = _APP_SUPPORT_DIR / "WhisperVoice.pid"
 _OPENCC_CONVERTER = OpenCC("s2twp") if OpenCC else None
 
 
 def write_pid_file() -> None:
+    _APP_SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
     _PID_FILE.write_text(str(os.getpid()))
 
 
@@ -76,7 +78,8 @@ def remove_pid_file() -> None:
 def ensure_single_instance(app_name: str = "WhisperVoiceTypingMac") -> bool:
     """使用 lockfile + fcntl.flock 防止重複啟動"""
     global _lock_file_handle
-    lock_path = Path(tempfile.gettempdir()) / f"{app_name}.lock"
+    _APP_SUPPORT_DIR.mkdir(parents=True, exist_ok=True)
+    lock_path = _APP_SUPPORT_DIR / f"{app_name}.lock"
 
     try:
         import fcntl
@@ -759,9 +762,10 @@ class AudioRecorder:
         if duration < 0.5:
             return None, duration
 
-        wav_path = os.path.join(tempfile.gettempdir(), "whisper_voice_mac.wav")
-        sf.write(wav_path, audio_data, self.sample_rate, subtype="PCM_16")
-        return wav_path, duration
+        tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        tmp.close()
+        sf.write(tmp.name, audio_data, self.sample_rate, subtype="PCM_16")
+        return tmp.name, duration
 
     @property
     def buffer_samples(self) -> int:
@@ -1162,6 +1166,7 @@ def main():
         channels=config["recording"]["channels"],
     )
     recording_flag = False
+    processing_flag = False  # True = 辨識進行中，擋住新錄音避免 race condition
     lock = threading.Lock()
 
     # ── 6. 熱鍵偵測 ──
@@ -1226,103 +1231,115 @@ def main():
 
     def _do_process_recording(target_app: str = ""):
         """背景執行緒：停止錄音 → 辨識 → 貼上，不阻塞監聽器"""
+        nonlocal processing_flag
         wav_path, audio_sec = recorder.stop()
-        if not wav_path:
-            set_state("idle")
-            print("⚠️  錄音時間太短，已忽略")
-            return
-
-        set_state("processing")
-        mode = mode_manager.current
-        print(f"🔄 辨識中... [{mode.display}]")
-
-        t0 = time.time()
         try:
-            raw_text = provider.transcribe(wav_path, mode)
-        except requests.HTTPError as e:
-            status = e.response.status_code if e.response else "?"
-            msg = {401: "API Key 無效", 403: "API Key 權限不足", 429: "請求過於頻繁"}.get(
-                status, f"API 錯誤 HTTP {status}"
-            )
-            print(f"❌ {msg}")
-            set_state("error")
+            if not wav_path:
+                set_state("idle")
+                print("⚠️  錄音時間太短，已忽略")
+                return
+
+            set_state("processing")
+            mode = mode_manager.current
+            print(f"🔄 辨識中... [{mode.display}]")
+
+            t0 = time.time()
+            try:
+                raw_text = provider.transcribe(wav_path, mode)
+            except requests.HTTPError as e:
+                status = e.response.status_code if e.response else "?"
+                msg = {401: "API Key 無效", 403: "API Key 權限不足", 429: "請求過於頻繁"}.get(
+                    status, f"API 錯誤 HTTP {status}"
+                )
+                print(f"❌ {msg}")
+                set_state("error")
+                session_logger.log(
+                    timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                    provider=provider.name, audio_sec=round(audio_sec, 2),
+                    error_type="http_error", error_detail=f"HTTP {status}: {msg}",
+                )
+                time.sleep(2)
+                set_state("idle")
+                return
+            except requests.exceptions.Timeout:
+                print("❌ 網路逾時")
+                set_state("error")
+                session_logger.log(
+                    timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                    provider=provider.name, audio_sec=round(audio_sec, 2),
+                    error_type="timeout", error_detail="requests.Timeout",
+                )
+                time.sleep(2)
+                set_state("idle")
+                return
+            except Exception as e:
+                print(f"❌ 發生錯誤：{e}")
+                set_state("error")
+                session_logger.log(
+                    timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
+                    provider=provider.name, audio_sec=round(audio_sec, 2),
+                    error_type="unknown", error_detail=str(e),
+                )
+                time.sleep(2)
+                set_state("idle")
+                return
+
+            t_stt = time.time()
+            stt_ms = int((t_stt - t0) * 1000)
+            print(f"🪵 raw STT: {raw_text}")
+
+            corrected_text = apply_corrections(raw_text, mode.regex_rules)
+            if not corrected_text:
+                print("⚠️  辨識結果為空")
+                set_state("idle")
+                return
+            print(f"🪵 regex corrected: {corrected_text}")
+
+            t_llm = time.time()
+            llm_finish_reason = None
+            if llm_correction and mode.llm_prompt:
+                llm_corrected_text = llm_correction.correct(corrected_text, mode)
+                llm_finish_reason = getattr(llm_correction, "last_finish_reason", None)
+                print(f"🪵 LLM corrected: {llm_corrected_text}")
+            else:
+                llm_corrected_text = corrected_text
+                print("🪵 LLM corrected: <skipped>")
+            llm_ms = int((time.time() - t_llm) * 1000)
+
+            final_text = normalize_traditional_text(llm_corrected_text, mode)
+
+            print(f"⏱  STT: {stt_ms}ms  |  LLM: {llm_ms}ms  |  total: {int((time.time() - t0) * 1000)}ms")
+
+            paste_method, paste_ok = paste_text(final_text, target_app)
+            print(f"✅ 已貼上：{final_text}")
+            set_state("idle")
+
             session_logger.log(
-                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
-                provider=provider.name, audio_sec=round(audio_sec, 2),
-                error_type="http_error", error_detail=f"HTTP {status}: {msg}",
+                timestamp=_now(),
+                mode_id=mode.id,
+                mode_name=mode.name,
+                provider=provider.name,
+                audio_sec=round(audio_sec, 2),
+                raw_stt=raw_text,
+                regex_out=corrected_text,
+                llm_out=llm_corrected_text if (llm_correction and mode.llm_prompt) else None,
+                final_text=final_text,
+                stt_ms=stt_ms,
+                llm_ms=llm_ms if (llm_correction and mode.llm_prompt) else None,
+                paste_method=paste_method,
+                paste_ok=int(paste_ok),
+                llm_finish_reason=llm_finish_reason,
             )
-            time.sleep(2)
-            set_state("idle")
-            return
-        except requests.exceptions.Timeout:
-            print("❌ 網路逾時")
-            set_state("error")
-            session_logger.log(
-                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
-                provider=provider.name, audio_sec=round(audio_sec, 2),
-                error_type="timeout", error_detail="requests.Timeout",
-            )
-            time.sleep(2)
-            set_state("idle")
-            return
-        except Exception as e:
-            print(f"❌ 發生錯誤：{e}")
-            set_state("error")
-            session_logger.log(
-                timestamp=_now(), mode_id=mode.id, mode_name=mode.name,
-                provider=provider.name, audio_sec=round(audio_sec, 2),
-                error_type="unknown", error_detail=str(e),
-            )
-            time.sleep(2)
-            set_state("idle")
-            return
-
-        t_stt = time.time()
-        stt_ms = int((t_stt - t0) * 1000)
-        print(f"🪵 raw STT: {raw_text}")
-
-        corrected_text = apply_corrections(raw_text, mode.regex_rules)
-        if not corrected_text:
-            print("⚠️  辨識結果為空")
-            set_state("idle")
-            return
-        print(f"🪵 regex corrected: {corrected_text}")
-
-        t_llm = time.time()
-        llm_finish_reason = None
-        if llm_correction and mode.llm_prompt:
-            llm_corrected_text = llm_correction.correct(corrected_text, mode)
-            llm_finish_reason = getattr(llm_correction, "last_finish_reason", None)
-            print(f"🪵 LLM corrected: {llm_corrected_text}")
-        else:
-            llm_corrected_text = corrected_text
-            print("🪵 LLM corrected: <skipped>")
-        llm_ms = int((time.time() - t_llm) * 1000)
-
-        final_text = normalize_traditional_text(llm_corrected_text, mode)
-
-        print(f"⏱  STT: {stt_ms}ms  |  LLM: {llm_ms}ms  |  total: {int((time.time() - t0) * 1000)}ms")
-
-        paste_method, paste_ok = paste_text(final_text, target_app)
-        print(f"✅ 已貼上：{final_text}")
-        set_state("idle")
-
-        session_logger.log(
-            timestamp=_now(),
-            mode_id=mode.id,
-            mode_name=mode.name,
-            provider=provider.name,
-            audio_sec=round(audio_sec, 2),
-            raw_stt=raw_text,
-            regex_out=corrected_text,
-            llm_out=llm_corrected_text if (llm_correction and mode.llm_prompt) else None,
-            final_text=final_text,
-            stt_ms=stt_ms,
-            llm_ms=llm_ms if (llm_correction and mode.llm_prompt) else None,
-            paste_method=paste_method,
-            paste_ok=int(paste_ok),
-            llm_finish_reason=llm_finish_reason,
-        )
+        finally:
+            # WAV 暫存檔用後刪除（NamedTemporaryFile delete=False）
+            if wav_path:
+                try:
+                    os.unlink(wav_path)
+                except OSError:
+                    pass
+            # 解除辨識鎖，允許下一次錄音
+            with lock:
+                processing_flag = False
 
     def on_press(key):
         nonlocal recording_flag
@@ -1345,12 +1362,16 @@ def main():
 
         with lock:
             if not recording_flag:
+                if processing_flag:
+                    print("⚠️  辨識進行中，請稍後再錄音")
+                    return
                 # 第一次按：開始錄音
                 recording_flag = True
                 threading.Thread(target=_do_start_recording, daemon=True).start()
             else:
                 # 第二次按：停止並辨識（立刻捕捉前景 App 供方案 A 使用）
                 recording_flag = False
+                processing_flag = True  # 立即鎖定，防止辨識期間再觸發
                 target_app = get_frontmost_app()
                 threading.Thread(target=_do_process_recording, args=(target_app,), daemon=True).start()
 

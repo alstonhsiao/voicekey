@@ -60,13 +60,13 @@ windows_Whisper/
 - [x] 刪除重複的根目錄 `.env.local`（`env.local` 為主）（2026-06-12）
 
 優先度 P1（短期，approach-6）：
-- [ ] WAV 暫存改 `tempfile.NamedTemporaryFile` 隨機檔名，用後刪除（main.py:761）
-- [ ] PID/lock 檔移出 `/tmp` → `~/Library/Application Support/WhisperVoice/`
-- [ ] recorder race condition：辨識進行中以 busy flag 擋住新錄音（main.py:1345）
-- [ ] `requirements.txt` 鎖版（全改 `==` + `uv pip compile` 產 lock 檔）
-- [ ] install.sh：`read -rs` 靜默讀 key；建檔即 `chmod 600 "$ENV_FILE"`
-- [ ] .command 硬編碼絕對路徑 `/Users/alston/…` → 改 `$(cd "$(dirname "$0")" && pwd)`
-- [ ] 重啟語音輸入.command：kill 前比對 `ps -p $PID -o command=` 含 `main.py`，防誤殺
+- [x] WAV 暫存改 `tempfile.NamedTemporaryFile` 隨機檔名，用後刪除（2026-06-12）
+- [x] PID/lock 檔移出 `/tmp` → `~/Library/Application Support/WhisperVoice/`（2026-06-12）
+- [x] recorder race condition：辨識進行中以 `processing_flag` 擋住新錄音（2026-06-12）
+- [x] `requirements.txt` 鎖版（全改 `==`，版本取自目前 venv）（2026-06-12）
+- [x] install.sh：`read -rs` 靜默讀 key；建檔即 `chmod 600 "$ENV_FILE"`（2026-06-12）
+- [x] .command 相對路徑 `$(cd "$(dirname "$0")" && pwd)`（2026-06-12）
+- [x] 重啟語音輸入.command：kill 前 `ps -p $PID -o command=` 比對 `main.py`，防誤殺（2026-06-12）
 
 優先度 P2（中期）：
 - [ ] approach-3 封存：修 build.bat 移除 `--add-data config.json`（金鑰打包風險）；requirements.txt 鎖版

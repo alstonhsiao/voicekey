@@ -103,6 +103,7 @@ echo ""
 echo -e "${BOLD}[4/5] 設定 API Key${NC}"
 
 [ -f "$ENV_FILE" ] || touch "$ENV_FILE"
+chmod 600 "$ENV_FILE"
 
 has_key() {
     local KEY_NAME="$1"
@@ -118,7 +119,8 @@ prompt_key() {
     echo ""
     info "$DESC"
     info "範例格式：$EXAMPLE"
-    read -r -p "   請貼上你的 Key（Enter 跳過）: " INPUT_KEY
+    read -rs -p "   請貼上你的 Key（Enter 跳過）: " INPUT_KEY
+    echo ""
     if [ -n "$INPUT_KEY" ]; then
         # 移除舊的同名 key 再寫入
         if grep -q "^${KEY_NAME}=" "$ENV_FILE" 2>/dev/null; then
