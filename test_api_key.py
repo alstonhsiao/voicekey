@@ -54,10 +54,10 @@ def test_api_key():
         return False
 
     if not api_key.startswith("sk-"):
-        print(f"❌ API Key 格式不正確（應以 sk- 開頭），目前值前 6 字元：{api_key[:6]}...")
+        print(f"❌ API Key 格式不正確（應以 sk- 開頭）")
         return False
 
-    print(f"✅ API Key 格式正確（前綴：{api_key[:8]}...，長度：{len(api_key)} 字元）")
+    print(f"✅ API Key 格式正確（前綴：sk-***，長度：{len(api_key)} 字元）")
 
     # 2. 呼叫 GET /v1/models（免費端點，只驗證 Key 有效性）
     print("\n🔄 正在連線到 OpenAI API...")

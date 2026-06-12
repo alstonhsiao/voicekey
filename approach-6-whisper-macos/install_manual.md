@@ -109,6 +109,7 @@ python3 -m venv .venv
 | `pynput` | 全局熱鍵偵測 |
 | `pyperclip` | 寫入剪貼簿 |
 | `rumps` | macOS 選單列圖示（可選） |
+| `opencc-python-reimplemented` | 簡繁轉換兜底（可選） |
 
 **步驟 4：設定 API Key**（見下一節）
 

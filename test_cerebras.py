@@ -30,7 +30,7 @@ def test_cerebras():
         print("❌ 找不到 CEREBRAS_API_KEY，請確認 env.local 已設定並填寫正確")
         return False
 
-    print(f"✅ 找到 API Key（前綴：{api_key[:8]}...，長度：{len(api_key)} 字元）")
+    print(f"✅ 找到 API Key（前綴：csk-***，長度：{len(api_key)} 字元）")
     print("🔄 正在連線到 Cerebras API...")
 
     url = "https://api.cerebras.ai/v1/chat/completions"
@@ -63,7 +63,11 @@ def test_cerebras():
             return False
     else:
         print(f"❌ API 呼叫失敗，HTTP 狀態碼：{response.status_code}")
-        print(f"回應：{response.text}")
+        try:
+            err_msg = response.json().get("error", {}).get("message", response.text[:200])
+        except Exception:
+            err_msg = response.text[:200]
+        print(f"回應：{err_msg}")
         return False
 
 if __name__ == "__main__":
