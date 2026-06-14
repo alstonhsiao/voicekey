@@ -1,0 +1,15 @@
+# xcodegen output — regenerable from project.yml
+*.xcodeproj/
+
+# Xcode build artifacts
+DerivedData/
+build/
+*.xcuserstate
+*.xcuserdatad/
+
+# macOS
+.DS_Store
+
+# Local secrets — never commit
+env.local
+.env.local

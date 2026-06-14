@@ -1,0 +1,5 @@
+{
+  "_comment": "第二層 Cerebras LLM 額外修正詞彙。改完存檔即可，程式會自動重載，不必重啟。names 為正確人名/術語（LLM 將確保正確拼寫）；corrections 為強制替換（key=錯誤寫法, value=正確寫法）。動態注入 system prompt，不需重啟。範例：\"names\": [\"蕭淳云\"], \"corrections\": {\"蕭純云\": \"蕭淳云\"}",
+  "names": [],
+  "corrections": {}
+}

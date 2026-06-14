@@ -2,6 +2,27 @@
 
 ## Recent Progress
 
+### 2026-06-14 — approach-7-xcode：原生 Swift/AppKit 版（Phase 0→7 全數完成）
+
+**一口氣完成 planxcode060614.md 全部 7 個 Phase，每個 Phase `xcodebuild` 通過。**
+
+#### 成果
+- 新建 `approach-7-xcode/`（與 approach-6 並排存活，OpenCC 層省略）。xcodegen（`project.yml`）+ `xcodebuild` headless build；ad-hoc 簽章。
+- 模組對照 approach-6：`Config`(+config.local.json deep merge/schema)、`Mode/ModeManager`、`Secrets`(env→Keychain)、`AudioRecorder`(AVAudioEngine→16k mono PCM16 + CoreAudio 裝置選擇)、`HotkeyManager`(**Carbon RegisterEventHotKey，免「輸入監控」授權**)、`TranscribeProvider`(Grok/OpenAI/Groq)、`CerebrasProvider`(失敗降級不拋例外)、`RegexCorrections`、三層 `VocabStore`(+mtime 熱重載)、`PinyinEngine`(CFStringTransform)、`Paste`(NSPasteboard+CGEvent Cmd+V)、`MenuBarController`(狀態列+模式打勾+三層詞彙子選單)、`SessionLogger`(libsqlite3, ~/.whisper_voice_log.db, 600)、`SingleInstance`(flock)。
+- 詞彙檔首次啟動由 bundle 種子到 `~/Library/Application Support/WhisperVoice/`（可編輯、存檔即熱重載）。
+
+#### 驗證（headless，免麥克風/真人）
+- **拼音引擎對拍 pypinyin**：CFStringTransform 與 pypinyin 完全一致（蕭淳云→xiao chun yun、周芷萓→zhou zhi yi、加模→jia mo，含罕用字 萓）。
+- **32 單元測試綠**：Config 合併/schema、Grok/OpenAI multipart 組裝、Cerebras body+降級、`蕭純云→蕭淳云` fuzzy、override、require_surname、熱重載、壞檔降級、Layer1/2。
+- **真實 API smoke test**（`say` 生成語音→真實 Grok STT→真實 Cerebras）通過：STT 回文字、Cerebras 修正大小寫生效。
+- **執行驗證**：4 模式載入、USB 麥克風列舉+候選自動選中、Carbon 熱鍵註冊成功、麥克風/輔助使用授權、vocab 種子化（12 詞）、session DB 18 欄（含 vocab_out/llm_finish_reason）權限 600、單例鎖（第二實例退出）、ad-hoc `codesign --verify` 通過。
+
+#### 待真人 / 已知問題（詳見 `approach-7-xcode/ISSUES-xcode.md`）
+- 真人實機：按 Ctrl+F1 講中文、確認貼上+狀態列、Ctrl+F10/選單切模式。
+- 獨立 `.app`（雙擊）需各自勾選麥克風/輔助使用（與從終端機繼承不同）。
+- Gatekeeper 拒 ad-hoc（預期）：跨機右鍵→開啟或 `xattr -dr com.apple.quarantine`；notarization 需付費帳號，**日後選配**。
+- DerivedData 不可放 iCloud 同步目錄（已固定到 `~/Library/Developer/WhisperVoice-DD`）。
+
 ### 2026-06-14 — 使用者自訂詞彙系統（第三層拼音 fuzzy 後處理）
 
 **完成 plan20260614.md 全部施工項目**
