@@ -47,7 +47,7 @@ from _voice_paste import beep, get_frontmost_app, paste_text
 from _voice_postprocess import apply_corrections, normalize_traditional_text
 from _voice_providers import build_llm_correction_provider, build_provider
 from _voice_session import SessionLogger, _now
-from _voice_vocab import load_vocab_store
+from _voice_vocab import load_layer1_vocab, load_layer2_vocab, load_vocab_store
 
 # ---------------------------------------------------------------------------
 # 日誌設定
@@ -93,28 +93,49 @@ def main():
 
     session_logger = SessionLogger()
 
-    # ── 2b. 載入使用者自訂詞彙（第三層後處理）──
+    # ── 2b. 載入使用者自訂詞彙（三層）──
     base_dir = get_base_dir()
-    vocab_store = load_vocab_store(base_dir, config)
-    vocab_path = base_dir / config.get("vocab", {}).get("file", "user_vocab.json")
+    vocab_store = load_vocab_store(base_dir, config)           # 第三層：拼音 fuzzy
+    layer1_vocab = load_layer1_vocab(base_dir)                 # 第一層：Grok STT keyterms
+    layer2_vocab = load_layer2_vocab(base_dir)                 # 第二層：LLM 修正詞彙
+
+    vocab_path   = base_dir / config.get("vocab", {}).get("file", "user_vocab.json")
+    layer1_path  = base_dir / "layer1_keyterms.json"
+    layer2_path  = base_dir / "layer2_corrections.json"
+
     if vocab_store:
-        logger.info("   詞彙修正：%d 詞", len(vocab_store.stt_keyterms))
-        # 把 vocab 詞 merge 進每個 mode 的 grok_keyterms（去重後截斷）
-        try:
-            limit = int(config.get("vocab", {}).get("stt_keyterm_limit", 10))
-            for mode in mode_manager.all:
-                merged: list[str] = []
-                seen: set[str] = set()
-                for kw in list(mode.grok_keyterms) + vocab_store.stt_keyterms:
-                    if kw and kw not in seen:
-                        seen.add(kw)
-                        merged.append(kw)
-                mode.grok_keyterms = merged[:limit]
-        except Exception as e:
-            logger.warning("⚠️  STT keyterm merge 失敗，沿用原 keyterms（%s）", e)
+        logger.info("   第三層詞彙：%d 詞", len(vocab_store.stt_keyterms))
+
+    # 把第三層 vocab + 第一層 layer1 keyterms 都 merge 進各 mode 的 grok_keyterms（去重後截斷）
+    try:
+        limit = int(config.get("vocab", {}).get("stt_keyterm_limit", 10))
+        for mode in mode_manager.all:
+            merged: list[str] = []
+            seen: set[str] = set()
+            sources = list(mode.grok_keyterms)
+            if vocab_store:
+                sources += vocab_store.stt_keyterms
+            sources += layer1_vocab.keyterms
+            for kw in sources:
+                if kw and kw not in seen:
+                    seen.add(kw)
+                    merged.append(kw)
+            mode.grok_keyterms = merged[:limit]
+    except Exception as e:
+        logger.warning("⚠️  STT keyterm merge 失敗，沿用原 keyterms（%s）", e)
+
+    if layer1_vocab.keyterms:
+        logger.info("   第一層詞彙：%d 詞", len(layer1_vocab.keyterms))
+    if layer2_vocab.names or layer2_vocab.corrections:
+        logger.info("   第二層詞彙：%d 名 / %d 替換", len(layer2_vocab.names), len(layer2_vocab.corrections))
 
     # ── 3. 建立 rumps app（不啟動，稍後在主執行緒執行）──
-    rumps_app = build_menubar_app(mode_manager, vocab_path=vocab_path)
+    rumps_app = build_menubar_app(
+        mode_manager,
+        vocab_path=vocab_path,
+        layer1_vocab_path=layer1_path,
+        layer2_vocab_path=layer2_path,
+    )
 
     # ── 4. HUD ──
     hud = None
@@ -188,7 +209,9 @@ def main():
 
     def _do_start_recording():
         if vocab_store:
-            vocab_store.maybe_reload()  # 熱重載：改檔不必重啟
+            vocab_store.maybe_reload()   # 第三層熱重載
+        layer1_vocab.maybe_reload()      # 第一層熱重載
+        layer2_vocab.maybe_reload()      # 第二層熱重載
         set_state("recording")
         logger.info("🔴 錄音中... [模式：%s]（再按 %s 停止）", mode_manager.current.display, hotkey_display)
         recorder.start()
@@ -266,7 +289,8 @@ def main():
             t_llm = time.time()
             llm_finish_reason = None
             if llm_correction and mode.llm_prompt:
-                llm_corrected_text = llm_correction.correct(corrected_text, mode)
+                l2_injection = layer2_vocab.build_injection()
+                llm_corrected_text = llm_correction.correct(corrected_text, mode, extra_system_prompt=l2_injection)
                 llm_finish_reason = getattr(llm_correction, "last_finish_reason", None)
                 logger.debug("🪵 LLM corrected: %s", llm_corrected_text)
             else:

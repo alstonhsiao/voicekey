@@ -123,7 +123,7 @@ class CerebrasProvider(LLMCorrectionProvider):
     def __init__(self, cfg: dict):
         self.cfg = cfg
 
-    def correct(self, text: str, mode: Mode) -> str:
+    def correct(self, text: str, mode: Mode, extra_system_prompt: str = "") -> str:
         self.last_finish_reason: str | None = None
         if not mode.llm_prompt or not text:
             return text
@@ -133,10 +133,13 @@ class CerebrasProvider(LLMCorrectionProvider):
                 "Authorization": f"Bearer {self.cfg['api_key']}",
                 "Content-Type": "application/json",
             }
+            system_prompt = mode.llm_prompt
+            if extra_system_prompt:
+                system_prompt = system_prompt + "\n\n" + extra_system_prompt
             data = {
                 "model": self.cfg.get("model", "llama3.3-70b"),
                 "messages": [
-                    {"role": "system", "content": mode.llm_prompt},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user",   "content": text},
                 ],
                 "max_tokens": self.cfg.get("max_tokens", 512),

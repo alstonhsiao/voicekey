@@ -209,6 +209,114 @@ class VocabStore:
         return text
 
 
+# ---------------------------------------------------------------------------
+# 第一層：Grok STT 關鍵詞
+# ---------------------------------------------------------------------------
+
+class Layer1VocabStore:
+    """第一層 Grok STT 額外關鍵詞管理（hot-reload via mtime）。"""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._mtime: float | None = None
+        self._keyterms: list[str] = []
+        self.maybe_reload(force=True)
+
+    def maybe_reload(self, force: bool = False) -> None:
+        try:
+            if not self.path.exists():
+                return
+            mtime = self.path.stat().st_mtime
+            if not force and mtime == self._mtime:
+                return
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+            self._keyterms = [
+                k.strip() for k in data.get("keyterms", [])
+                if isinstance(k, str) and k.strip()
+            ]
+            self._mtime = mtime
+        except Exception as e:
+            logger.warning("⚠️  layer1_keyterms.json 載入失敗，沿用上一版（%s）", e)
+
+    @property
+    def keyterms(self) -> list[str]:
+        return list(self._keyterms)
+
+
+# ---------------------------------------------------------------------------
+# 第二層：Cerebras LLM 修正詞彙
+# ---------------------------------------------------------------------------
+
+class Layer2VocabStore:
+    """第二層 Cerebras LLM 修正詞彙管理（hot-reload via mtime）。"""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self._mtime: float | None = None
+        self._names: list[str] = []
+        self._corrections: dict[str, str] = {}
+        self.maybe_reload(force=True)
+
+    def maybe_reload(self, force: bool = False) -> None:
+        try:
+            if not self.path.exists():
+                return
+            mtime = self.path.stat().st_mtime
+            if not force and mtime == self._mtime:
+                return
+            with open(self.path, encoding="utf-8") as f:
+                data = json.load(f)
+            self._names = [
+                n.strip() for n in data.get("names", [])
+                if isinstance(n, str) and n.strip()
+            ]
+            raw_corr = data.get("corrections", {}) or {}
+            self._corrections = {
+                k: v for k, v in raw_corr.items()
+                if k != "_comment" and isinstance(v, str) and k and v
+            }
+            self._mtime = mtime
+        except Exception as e:
+            logger.warning("⚠️  layer2_corrections.json 載入失敗，沿用上一版（%s）", e)
+
+    def build_injection(self) -> str:
+        """建立動態注入 LLM system prompt 的補充文字。空檔案回傳空字串。"""
+        if not self._names and not self._corrections:
+            return ""
+        parts = []
+        if self._names:
+            parts.append("以下人名與術語請正確拼寫：" + "、".join(self._names))
+        if self._corrections:
+            corr_str = "、".join(f"{k}→{v}" for k, v in self._corrections.items())
+            parts.append("以下詞語請強制替換：" + corr_str)
+        return "\n".join(parts)
+
+    @property
+    def names(self) -> list[str]:
+        return list(self._names)
+
+    @property
+    def corrections(self) -> dict[str, str]:
+        return dict(self._corrections)
+
+
+def load_layer1_vocab(base_dir) -> Layer1VocabStore:
+    path = Path(base_dir) / "layer1_keyterms.json"
+    store = Layer1VocabStore(path)
+    if not path.exists():
+        logger.info("ℹ️  layer1_keyterms.json 不存在（建立後存檔即會熱重載）")
+    return store
+
+
+def load_layer2_vocab(base_dir) -> Layer2VocabStore:
+    path = Path(base_dir) / "layer2_corrections.json"
+    store = Layer2VocabStore(path)
+    if not path.exists():
+        logger.info("ℹ️  layer2_corrections.json 不存在（建立後存檔即會熱重載）")
+    return store
+
+
 def load_vocab_store(base_dir, config) -> VocabStore | None:
     """依 config 建立 VocabStore；停用或不可用時回傳 None。"""
     vocab_cfg = config.get("vocab", {}) or {}

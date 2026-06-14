@@ -10,14 +10,16 @@
 | `main.py` | 13 | Entry point: init, hotkey, recording dispatch, rumps launch | Entry flow, startup issues |
 | `_voice_config.py` | 10 | Config load, Mode/ModeManager, schema validation | Config changes, mode logic |
 | `_voice_postprocess.py` | 8 | Regex corrections + OpenCC Traditional conversion | Post-processing changes |
-| `_voice_vocab.py` | 7 | 第三層：拼音 fuzzy 詞彙替換 + mtime 熱重載 | Vocab / 人名修正 changes |
-| `user_vocab.json` | 1 | 使用者自訂詞彙（people/companies/projects/terms/overrides） | 加減人名、公司、術語 |
+| `_voice_vocab.py` | 9 | 三層詞彙 store：Layer1VocabStore / Layer2VocabStore / VocabStore + mtime 熱重載 | 任何詞彙層變更 |
+| `layer1_keyterms.json` | <1 | 第一層使用者 Grok STT 額外關鍵詞（熱重載） | 加減 STT 關鍵詞 |
+| `layer2_corrections.json` | <1 | 第二層使用者 LLM 修正詞彙（names + corrections，熱重載） | 加減 LLM 修正詞 |
+| `user_vocab.json` | 1 | 第三層使用者拼音 fuzzy 詞彙（people/companies/projects/terms/overrides） | 加減人名、公司、術語 |
 | `_voice_providers.py` | 6 | STT (Grok/OpenAI/Groq) + CerebrasProvider LLM | Provider / API changes |
 | `_voice_hud.py` | 6 | tkinter HUD (disabled on macOS 26 by default) | HUD changes only |
 | `_voice_paste.py` | 5 | osascript + GCD main-thread dispatch + paste_text | Paste / accessibility issues |
 | `config.json` | 5 | Runtime config: api refs, modes, hotkey, ui flags | Config schema reference |
 | `_voice_session.py` | 2 | SQLite session logger (chmod 600 on init) | Logging / DB issues |
-| `_voice_menubar.py` | 2 | rumps menu bar: mode display, switch, quit | Menu bar changes |
+| `_voice_menubar.py` | 3 | rumps menu bar: mode display, switch, 三層詞彙子選單, quit | Menu bar changes |
 | `_voice_audio.py` | 2 | AudioRecorder: sounddevice + NamedTemporaryFile | Audio recording issues |
 | `_voice_instance.py` | 1 | Single instance lock + PID file | Startup / lock issues |
 
