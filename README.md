@@ -11,6 +11,7 @@
 | 方案 | 平台 | 狀態 | 說明 |
 |---|---|---|---|
 | **approach-6-whisper-macos** | macOS | ✅ **現役主力** | Grok STT + Cerebras LLM + 拼音詞彙第三層，rumps 選單列，macOS 26 相容 |
+| **approach-7-xcode** | macOS | 🚧 **規劃中 / 並排重寫** | 原生 Swift/AppKit 版，功能與 approach-6 對等（省略 OpenCC）。與 Python 版並排存活，失敗可退回。架構與分階段計畫見 [planxcode060614.md](planxcode060614.md) |
 | **approach-3-python-exe** | Windows | 🗄️ 封存（有空再維護）| Python 打包 .exe，OpenAI Whisper，供同事雙擊使用 |
 
 > **已刪除**（2026-06-12）：approach-1（Python+uv）、approach-2（AHK+MCI）、approach-4（Gemini Windows）、approach-5（Gemini macOS）。刪除原因：approach-2 有 Critical 安全問題；approach-4/5 依賴 gemini-1.5-flash（已退役，API 回 404）；approach-1 功能被 approach-3 取代。
