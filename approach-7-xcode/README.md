@@ -29,14 +29,30 @@
 - 完整 Xcode（非僅 Command Line Tools）；本專案以 Xcode 26 驗證
 - `xcodegen`：`brew install xcodegen`
 
+## 首次：建立簽章憑證（一次性，每台機器做一次）
+
+```bash
+cd approach-7-xcode
+bash setup-signing-cert.sh   # 建 self-signed code-signing 憑證，匯入 login keychain
+```
+
+**為什麼必要**：若用 ad-hoc 簽章（`codesign -s -`），每次 rebuild 都會產生新 cdhash，
+macOS「輔助使用」授權綁的是 path+cdhash → **每次重編都掉授權**，文字無法自動貼上。
+改用固定的 self-signed 憑證後，TCC 改綁憑證 identity，rebuild 不再掉授權（只需授權一次）。
+`project.yml` 已設 `CODE_SIGN_IDENTITY: "WhisperVoice Self-Signed"`。
+踩過的坑與細節見 `GOTCHAS-xcode.md`。
+
+> 換簽章 identity（含首次從 ad-hoc 切過來）後，仍需到「輔助使用」**重新授權一次**：
+> 移除舊的白紙殘骸 → 啟動新 app → 允許 → 重啟生效。之後永久有效。
+
 ## 建置 / 測試 / 打包
 
 ```bash
 cd approach-7-xcode
 
-./build.sh            # Debug build（xcodegen generate + xcodebuild）
+./build.sh            # Debug build（self-signed 簽章；xcodegen generate + xcodebuild）
 ./test.sh             # 跑單元測試（拼音對拍、三層詞彙、provider 組裝、Cerebras 降級）
-./package.sh          # Release build + ad-hoc 簽章 + 驗證
+./package.sh          # Release build + 簽章 + 驗證
 ```
 
 > ⚠️ **DerivedData 必須在 iCloud 同步目錄（`~/Documents`）之外**，否則 build 產物
@@ -99,7 +115,8 @@ cd approach-7-xcode
   （`~/.whisper_voice_log.db`）。
 - 不滿意 Xcode 版：刪掉整個 `approach-7-xcode/` 即可，Python 版零影響。
 
-## 已知待辦
+## 已知待辦 / 踩坑
 
-需真人操作或跨機驗證的項目，集中記錄在 `ISSUES-xcode.md`。
+- 需真人操作或跨機驗證的項目 → `ISSUES-xcode.md`
+- 實機除錯踩過的坑與**確認解法**（macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章、debug dylib crash）→ `GOTCHAS-xcode.md`
 

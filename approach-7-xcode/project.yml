@@ -12,7 +12,10 @@ settings:
     CURRENT_PROJECT_VERSION: "1"
     SWIFT_VERSION: "5.0"
     CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "-"
+    # 穩定 self-signed 憑證（見 setup-signing-cert.sh）。用固定 identity 簽，
+    # 避免 ad-hoc 每次 rebuild 換 cdhash 導致「輔助使用」授權失效。
+    # 若尚未建立憑證，先跑 bash setup-signing-cert.sh，或暫時改回 "-" 用 ad-hoc。
+    CODE_SIGN_IDENTITY: "WhisperVoice Self-Signed"
     DEVELOPMENT_TEAM: ""
     ENABLE_USER_SCRIPT_SANDBOXING: NO
 
@@ -32,7 +35,12 @@ targets:
         INFOPLIST_FILE: WhisperVoice/Info.plist
         CODE_SIGN_ENTITLEMENTS: WhisperVoice/WhisperVoice.entitlements
         GENERATE_INFOPLIST_FILE: NO
-        ENABLE_HARDENED_RUNTIME: YES
+        # 自用、不 notarize，關閉 hardened runtime：self-signed 憑證（TeamID not set）
+        # 搭配 hardened runtime 會讓 dyld 以 Team ID 不符為由拒載入 dylib。
+        ENABLE_HARDENED_RUNTIME: NO
+        # 關閉 Xcode 16 的 debug dylib 拆分：否則主程式與 .debug.dylib 在 self-signed
+        # 簽章下 Team ID 比對失敗，啟動即 "Library not loaded" crash。
+        ENABLE_DEBUG_DYLIB: NO
         ENABLE_TESTABILITY: YES
         COMBINE_HIDPI_IMAGES: YES
         LD_RUNPATH_SEARCH_PATHS:

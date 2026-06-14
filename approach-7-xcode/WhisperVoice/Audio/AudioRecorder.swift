@@ -73,18 +73,27 @@ final class AudioRecorder {
         }
         AppLog.info("🎙️ 錄音裝置：\(currentDeviceLabel())")
 
-        // Install tap BEFORE engine.start() — on macOS 26, taps installed after
-        // engine.prepare() with format:nil do not receive audio callbacks.
-        // engine.start() calls prepare() internally, which finalises the tap chain.
-        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buf, _ in
+        // CRITICAL: after changing the device via AudioUnitSetProperty, inputNode.outputFormat
+        // stays stale (it reflects the device present at engine-creation time). format:nil would
+        // use that stale format → mismatch with the new device's hardware → -10868
+        // (kAudioUnitErr_FormatNotSupported) at start(). inputFormat(forBus:0) queries the live
+        // AUHAL and returns the SELECTED device's true hardware format, so the chain matches.
+        let hwFormat = input.inputFormat(forBus: 0)
+        AppLog.info("🎙️ 硬體格式：\(hwFormat.sampleRate) Hz \(hwFormat.channelCount)ch")
+        guard hwFormat.sampleRate > 0, hwFormat.channelCount > 0 else {
+            AppLog.error("❌ 取得硬體格式失敗（sampleRate=\(hwFormat.sampleRate)）")
+            return
+        }
+
+        // Install tap BEFORE engine.start() — on macOS 26, taps installed after prepare()
+        // may not fire. Use the live hardware format (not nil) so the device change is honoured.
+        input.installTap(onBus: 0, bufferSize: 4096, format: hwFormat) { [weak self] buf, _ in
             self?.collect(buf)
         }
 
         do {
             try engine.start()
             isRecording = true
-            let fmt = input.outputFormat(forBus: 0)
-            AppLog.info("🎙️ 輸入格式：\(fmt.sampleRate) Hz \(fmt.channelCount)ch")
         } catch {
             AppLog.error("❌ 錄音啟動失敗（可能未授權麥克風）：\(error)")
             input.removeTap(onBus: 0)
