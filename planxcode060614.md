@@ -16,6 +16,9 @@
 | 並排存活 | Python（approach-6）保持不動；Xcode 版放在 `approach-7-xcode/` |
 | 退場機制 | 若 Xcode 版失敗，整個 `approach-7-xcode/` 刪除即可，Python 版零影響 |
 | config.local.json | 一併實作（Handoff20260614.md 的多台 Mac 需求） |
+| 執行模式 | **一口氣 Phase 0→7 不停**；需真人操作/無法繞過的問題記入 `approach-7-xcode/ISSUES-xcode.md`，跑完一次回報（見 §7） |
+| 建置工具 | 完整 Xcode + xcodegen + xcodebuild headless |
+| 簽章 | ad-hoc 自用（notarization 日後選配） |
 
 ---
 
@@ -54,6 +57,8 @@
 | Session log | sqlite3 (Python stdlib) | **libsqlite3**（C API 直呼，零外部依賴） | 退路：GRDB.swift（SPM） |
 | 單例鎖 | fcntl flock | **`NSRunningApplication` bundleId 檢查** 或 flock | |
 | 設定檔 | config.json | config.json + **config.local.json** 覆蓋 | 見 §4.2 |
+| 專案產生 | — | **xcodegen**（project.yml → .xcodeproj）+ xcodebuild | 需完整 Xcode + `brew install xcodegen` |
+| 簽章 | — | **ad-hoc**（`codesign -s -`）自用；notarization 日後選配 | §6 |
 | API Key | env.local | env.local（相容）+ **Keychain**（.app 分發推薦） | 見 §4.3 |
 
 ---
@@ -62,7 +67,9 @@
 
 ```
 approach-7-xcode/
-├── WhisperVoice.xcodeproj
+├── project.yml                        # xcodegen 宣告式設定（納管）→ 生成 .xcodeproj
+├── WhisperVoice.xcodeproj             # xcodegen 產出（可不納管，靠 project.yml 重生）
+├── ISSUES-xcode.md                    # 一口氣執行時記錄的待處理問題（見 §7）
 ├── WhisperVoice/
 │   ├── WhisperVoiceApp.swift          # @main NSApplicationMain / AppDelegate 掛載
 │   ├── AppDelegate.swift              # 生命週期、單例鎖、組裝所有元件
@@ -281,21 +288,42 @@ approach-7-xcode/
   | 麥克風 | 錄音 | 無法錄音 |
   | 輔助使用 (Accessibility) | CGEvent 合成 Cmd+V | 辨識成功但不貼上 |
   | 輸入監控 | **若用 Carbon HotKey 則不需要**（相對 Python 是改善） | — |
-- 分發：
-  - 個人/自用：ad-hoc 簽章即可
-  - 給其他 Mac mini：**Developer ID 簽章 + notarization**（`notarytool`）→ 免「來路不明」Gatekeeper 警告
+- 分發（**本輪走 ad-hoc 自用**，2026-06-14 使用者指定）：
+  - 自用：`codesign -s - --force --deep WhisperVoice.app`（ad-hoc，免帳號）
+  - 給其他 Mac mini：各機首次**右鍵 → 開啟**，或 `xattr -dr com.apple.quarantine WhisperVoice.app`
+  - Developer ID + notarization（`notarytool`）→ **日後選配**，需 Apple Developer 付費帳號（目前無）
 - ⚠️ 重新簽章會使「輔助使用」授權失效，需重新勾選
 
 ---
 
-## 7. 實作 Phase（新 session 逐階段執行，每階段可驗證）
+## 7. 實作 Phase（新 session 一口氣執行，遇問題記錄不停）
 
-> 每個 Phase 結束都要能 build 過 + 手動驗證該階段行為，再進下一階段。
+> **執行模式：一口氣到底（2026-06-14 使用者指定）。**
+> - 從 Phase 0 連續做到 Phase 7，**不要中途停下來等驗證**。
+> - 每個 Phase 結束 **必須 `xcodebuild` build 過** 才進下一個（build 不過要當場修，這是硬門檻）。
+> - **「✅ 驗證」項目中凡是需要真人操作的**（授權麥克風/輔助使用、實機講話測試、貼上到別的 App、跨機分發）→
+>   **不要停，寫進 `approach-7-xcode/ISSUES-xcode.md` 待辦清單**，全部 Phase 跑完後一次回報給使用者處理。
+> - 能自動驗證的（單元測試、build、log 檢查）就當場做。
+> - 遇到「卡住、無法繞過」的技術問題（如某 API 行為不如預期）→ 一樣記進 ISSUES-xcode.md，**用降級/暫時 stub 跳過繼續**，不要卡死整條線。
+>
+> **ISSUES-xcode.md 格式**（每筆）：
+> ```
+> ## [Phase N] 標題
+> - 類型：需真人操作 / 技術阻擋 / 待驗證
+> - 現況：……
+> - 暫時處理：（若有 stub/降級）……
+> - 待辦：使用者需要做什麼 / 下一步
+> ```
+>
+> 建置工具鏈（已確認走此路）：完整 Xcode + **xcodegen**（`project.yml` 生成 `.xcodeproj`）+ `xcodebuild` headless build。
 
-**Phase 0 — 專案骨架**
-- 建立 `approach-7-xcode/` Xcode 專案（menu bar agent，LSUIElement）
+**Phase 0 — 專案骨架（xcodegen + xcodebuild）**
+- 寫 `approach-7-xcode/project.yml`（xcodegen 宣告式設定：app target、macOS 13+、LSUIElement=YES、Info.plist、entitlements、Resources、bundleId `com.alston.WhisperVoice`）
+- 跑 `xcodegen generate` 產生 `WhisperVoice.xcodeproj`
 - AppDelegate 起一個 `NSStatusItem` 顯示 🎤；能結束程式
-- ✅ 驗證：選單列出現圖示，可結束
+- `xcodebuild -project WhisperVoice.xcodeproj -scheme WhisperVoice build` 必須過
+- 把 `.gitignore` 加上 `*.xcodeproj` 是否納管的決定：**納管 project.yml，忽略 DerivedData/ 與 build 產物**
+- ✅ 自動驗證：build 成功、產出 .app；（選單列圖示需真人看 → 記 ISSUES）
 
 **Phase 1 — Config + Mode + Secrets**
 - Config.swift（含 config.local.json merge + schema 驗證）、Mode/ModeManager、Secrets
@@ -325,10 +353,11 @@ approach-7-xcode/
 - SessionLogger（sqlite）+ 模式選單打勾切換 + 單例鎖
 - ✅ 驗證：`~/.whisper_voice_log.db` 有完整欄位；四模式可切換
 
-**Phase 7 — 簽章 / 分發 / 文件**
-- Developer ID 簽章 + notarization 流程跑通
-- approach-7-xcode/README.md：安裝、授權、與 Python 差異、退場說明
-- ✅ 驗證：拖到另一台 Mac mini 能啟動、授權後可用
+**Phase 7 — 簽章（ad-hoc）/ 文件**
+- **ad-hoc 簽章**（`codesign -s - --force --deep WhisperVoice.app`）— 自用，免帳號免憑證（2026-06-14 使用者指定）
+- Developer ID + notarization **標記為日後選配**（需 Apple Developer 付費帳號，目前無 → 記 ISSUES，不在本輪做）
+- approach-7-xcode/README.md：安裝、授權步驟、與 Python 差異、退場說明、（多機分發時各機首次右鍵開啟或 `xattr -dr com.apple.quarantine`）
+- ✅ 自動驗證：ad-hoc 簽章成功、`codesign -dv` 通過；（跨機分發、實機授權測試需真人 → 記 ISSUES）
 
 ---
 
@@ -362,6 +391,11 @@ approach-7-xcode/
 
 1. 先讀本檔（planxcode060614.md）+ `AGENTS.md` + `approach-6-whisper-macos/INDEX.md`
 2. 對照 approach-6 各模組原始碼（已是行為的 source of truth）
-3. 依 §7 Phase 0 → 7 順序實作，**每個 Phase build 過 + 手動驗證再前進**
+3. **一口氣**依 §7 Phase 0 → 7 實作，**每個 Phase 必須 `xcodebuild` 過才前進；需真人/卡住的問題記入 ISSUES-xcode.md 不停**
 4. 拼音引擎（§4.7）先寫測試對拍 pypinyin，再接 VocabStore
-5. 完成後更新 `AGENTS.md`（approach-7 轉現役候選）、根 README、`docs/agent-progress.md`
+5. 全部跑完後：彙整 ISSUES-xcode.md 回報使用者；更新 `AGENTS.md`、根 README、`docs/agent-progress.md`
+
+開工前環境檢查（缺則先處理）：
+- `xcodebuild -version` 要能跑（需完整 Xcode，非只有 CLT）；必要時 `sudo xcode-select -s /Applications/Xcode.app` + `sudo xcodebuild -license accept`
+- `which xcodegen`（缺則 `brew install xcodegen`）
+- `env.local` 內 `XAI_API_KEY` / `CEREBRAS_API_KEY` 就緒（Phase 3 API 測試用）
