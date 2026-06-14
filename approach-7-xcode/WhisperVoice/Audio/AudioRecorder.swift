@@ -6,15 +6,22 @@ import AVFoundation
 /// Conversion to 16k mono PCM16 WAV happens in stop() on the calling thread,
 /// away from the real-time audio thread.
 ///
-/// Key fix for macOS 26: installTap(format: nil) avoids the NSException that fires
-/// when a non-native AVAudioFormat is passed to InstallTapOnNode.
+/// macOS 26 notes:
+/// - engine is recreated each start() — reusing a stopped AVAudioEngine causes NSException
+///   on second installTap (engine internal state not fully reset after stop()).
+/// - installTap must be called BEFORE engine.start(); taps added after prepare() with
+///   format:nil do not receive audio callbacks on macOS 26.
+/// - format:nil still used (not a specific AVAudioFormat) because passing a non-native
+///   AVAudioFormat to InstallTapOnNode throws NSException via AVAudioEngineImpl.
 final class AudioRecorder {
     private let sampleRate: Double
     private let deviceSpec: InputDeviceSpec
     private let beepThresholdSamples: Int
     private let targetFormat: AVAudioFormat
 
-    private let engine = AVAudioEngine()
+    // var, not let — recreated each recording so macOS 26 doesn't
+    // throw NSException on a second installTap on a reused stopped engine.
+    private var engine = AVAudioEngine()
 
     // Audio thread writes; main thread reads only after engine.stop().
     private var capturedBuffers: [AVAudioPCMBuffer] = []
@@ -50,12 +57,13 @@ final class AudioRecorder {
         capturedBuffers = []
         capturedFormat = nil
 
+        // Fresh engine — avoids macOS 26 NSException on second installTap
+        // when reusing a stopped AVAudioEngine (engine state not fully reset after stop()).
+        engine = AVAudioEngine()
         let input = engine.inputNode
 
-        // prepare() first — allocates audioUnit so we can set the device.
-        engine.prepare()
-
-        // Set device after prepare so audioUnit exists.
+        // Accessing inputNode.audioUnit before prepare() lazily allocates AUHAL,
+        // allowing device selection without calling prepare() explicitly.
         if let devID = CoreAudioDevices.find(deviceSpec), let au = input.audioUnit {
             var mutableID = devID
             let st = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
@@ -65,9 +73,9 @@ final class AudioRecorder {
         }
         AppLog.info("🎙️ 錄音裝置：\(currentDeviceLabel())")
 
-        // Install tap with format:nil — engine delivers buffers in native hardware format.
-        // Passing a specific AVAudioFormat here triggers NSException in macOS 26 when the
-        // channel layout descriptor doesn't match AVAudioEngine's internal expectation.
+        // Install tap BEFORE engine.start() — on macOS 26, taps installed after
+        // engine.prepare() with format:nil do not receive audio callbacks.
+        // engine.start() calls prepare() internally, which finalises the tap chain.
         input.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buf, _ in
             self?.collect(buf)
         }
