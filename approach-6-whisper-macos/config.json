@@ -33,6 +33,7 @@
   "recording": {
     "sample_rate": 16000,
     "channels": 1,
+    "input_device": ["USB PnP Audio Device(EEPROM)", "USB Audio & HID"],
     "bit_depth": 16
   },
 
@@ -102,6 +103,17 @@
   ],
 
   "default_mode_id": "direct",
+
+  "vocab": {
+    "enabled": true,
+    "file": "user_vocab.json",
+    "stt_keyterm_limit": 10,
+    "match": {
+      "use_tone": false,
+      "require_surname_char_same": false,
+      "min_term_len": 2
+    }
+  },
 
   "ui": {
     "hud_enabled": false,

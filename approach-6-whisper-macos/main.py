@@ -39,7 +39,7 @@ from pathlib import Path
 import requests
 
 from _voice_audio import AudioRecorder
-from _voice_config import ModeManager, load_config
+from _voice_config import ModeManager, get_base_dir, load_config
 from _voice_hud import HUD, _probe_tkinter
 from _voice_instance import ensure_single_instance, remove_pid_file, write_pid_file
 from _voice_menubar import build_menubar_app, set_menubar_state
@@ -47,6 +47,7 @@ from _voice_paste import beep, get_frontmost_app, paste_text
 from _voice_postprocess import apply_corrections, normalize_traditional_text
 from _voice_providers import build_llm_correction_provider, build_provider
 from _voice_session import SessionLogger, _now
+from _voice_vocab import load_vocab_store
 
 # ---------------------------------------------------------------------------
 # 日誌設定
@@ -92,8 +93,28 @@ def main():
 
     session_logger = SessionLogger()
 
+    # ── 2b. 載入使用者自訂詞彙（第三層後處理）──
+    base_dir = get_base_dir()
+    vocab_store = load_vocab_store(base_dir, config)
+    vocab_path = base_dir / config.get("vocab", {}).get("file", "user_vocab.json")
+    if vocab_store:
+        logger.info("   詞彙修正：%d 詞", len(vocab_store.stt_keyterms))
+        # 把 vocab 詞 merge 進每個 mode 的 grok_keyterms（去重後截斷）
+        try:
+            limit = int(config.get("vocab", {}).get("stt_keyterm_limit", 10))
+            for mode in mode_manager.all:
+                merged: list[str] = []
+                seen: set[str] = set()
+                for kw in list(mode.grok_keyterms) + vocab_store.stt_keyterms:
+                    if kw and kw not in seen:
+                        seen.add(kw)
+                        merged.append(kw)
+                mode.grok_keyterms = merged[:limit]
+        except Exception as e:
+            logger.warning("⚠️  STT keyterm merge 失敗，沿用原 keyterms（%s）", e)
+
     # ── 3. 建立 rumps app（不啟動，稍後在主執行緒執行）──
-    rumps_app = build_menubar_app(mode_manager)
+    rumps_app = build_menubar_app(mode_manager, vocab_path=vocab_path)
 
     # ── 4. HUD ──
     hud = None
@@ -114,6 +135,7 @@ def main():
     recorder = AudioRecorder(
         sample_rate=config["recording"]["sample_rate"],
         channels=config["recording"]["channels"],
+        input_device=config["recording"].get("input_device"),
     )
     recording_flag = False
     processing_flag = False  # True = 辨識進行中，擋住新錄音避免 race condition
@@ -165,6 +187,8 @@ def main():
         return not cycle_modifier or cycle_modifier in _pressed_mods
 
     def _do_start_recording():
+        if vocab_store:
+            vocab_store.maybe_reload()  # 熱重載：改檔不必重啟
         set_state("recording")
         logger.info("🔴 錄音中... [模式：%s]（再按 %s 停止）", mode_manager.current.display, hotkey_display)
         recorder.start()
@@ -252,6 +276,14 @@ def main():
 
             final_text = normalize_traditional_text(llm_corrected_text, mode)
 
+            # ── 第三層：使用者自訂詞彙拼音 fuzzy 替換（失敗降級不崩潰）──
+            vocab_out = None
+            if vocab_store:
+                vocab_out = vocab_store.apply(final_text)
+                if vocab_out != final_text:
+                    logger.debug("🪵 vocab corrected: %s", vocab_out)
+                final_text = vocab_out
+
             logger.info("⏱  STT: %dms  |  LLM: %dms  |  total: %dms",
                         stt_ms, llm_ms, int((time.time() - t0) * 1000))
 
@@ -268,6 +300,7 @@ def main():
                 raw_stt=raw_text,
                 regex_out=corrected_text,
                 llm_out=llm_corrected_text if (llm_correction and mode.llm_prompt) else None,
+                vocab_out=vocab_out,
                 final_text=final_text,
                 stt_ms=stt_ms,
                 llm_ms=llm_ms if (llm_correction and mode.llm_prompt) else None,
@@ -285,7 +318,7 @@ def main():
                 processing_flag = False
 
     def on_press(key):
-        nonlocal recording_flag
+        nonlocal recording_flag, processing_flag
 
         for mod_name, mod_keys in _MODIFIER_KEYS.items():
             if key in mod_keys:

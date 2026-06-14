@@ -123,6 +123,9 @@ def validate_config(config: dict) -> None:
         raise ValueError("config.recording.sample_rate 必須為整數")
     if not isinstance(rec.get("channels"), int):
         raise ValueError("config.recording.channels 必須為整數")
+    input_device = rec.get("input_device")
+    if input_device is not None and not isinstance(input_device, (int, str, list)):
+        raise ValueError("config.recording.input_device 必須為字串、整數、陣列或 null")
 
 
 # ---------------------------------------------------------------------------
@@ -163,7 +166,7 @@ def load_config() -> dict:
             },
             "temperature": 0.0,
         },
-        "recording": {"sample_rate": 16000, "channels": 1},
+        "recording": {"sample_rate": 16000, "channels": 1, "input_device": None},
         "hotkey": {
             "record_key": "F1",
             "record_modifier": "ctrl",
@@ -172,6 +175,16 @@ def load_config() -> dict:
         },
         "modes": [_default_mode],
         "default_mode_id": "direct",
+        "vocab": {
+            "enabled": False,
+            "file": "user_vocab.json",
+            "stt_keyterm_limit": 10,
+            "match": {
+                "use_tone": False,
+                "require_surname_char_same": False,
+                "min_term_len": 2,
+            },
+        },
         "ui": {
             "hud_enabled": True,
             "hud_position": "bottom-right",
@@ -212,6 +225,15 @@ def load_config() -> dict:
                 config["hotkey"].update(user_cfg["hotkey"])
             if "ui" in user_cfg:
                 config["ui"].update(user_cfg["ui"])
+            if "vocab" in user_cfg:
+                vocab_u = user_cfg["vocab"]
+                config["vocab"]["enabled"] = vocab_u.get("enabled", config["vocab"]["enabled"])
+                config["vocab"]["file"] = vocab_u.get("file", config["vocab"]["file"])
+                config["vocab"]["stt_keyterm_limit"] = vocab_u.get(
+                    "stt_keyterm_limit", config["vocab"]["stt_keyterm_limit"]
+                )
+                if "match" in vocab_u:
+                    config["vocab"]["match"].update(vocab_u["match"])
 
         else:
             # 舊 schema fallback

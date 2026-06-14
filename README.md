@@ -2,7 +2,7 @@
 
 > **按熱鍵 → 錄音 → API 辨識 → 自動貼上文字到游標位置**
 
-雙層架構：**Grok STT（第一層）→ Cerebras LLM 修正（第二層）**，解決繁簡混用、標點遺漏、人名術語辨識問題。
+三層架構：**Grok STT（第一層）→ Cerebras LLM 修正（第二層）→ 拼音詞彙精修（第三層）**，解決繁簡混用、標點遺漏、人名術語辨識問題。
 
 ---
 
@@ -10,7 +10,7 @@
 
 | 方案 | 平台 | 狀態 | 說明 |
 |---|---|---|---|
-| **approach-6-whisper-macos** | macOS | ✅ **現役主力** | Grok STT + Cerebras LLM，rumps 選單列，macOS 26 相容 |
+| **approach-6-whisper-macos** | macOS | ✅ **現役主力** | Grok STT + Cerebras LLM + 拼音詞彙第三層，rumps 選單列，macOS 26 相容 |
 | **approach-3-python-exe** | Windows | 🗄️ 封存（有空再維護）| Python 打包 .exe，OpenAI Whisper，供同事雙擊使用 |
 
 > **已刪除**（2026-06-12）：approach-1（Python+uv）、approach-2（AHK+MCI）、approach-4（Gemini Windows）、approach-5（Gemini macOS）。刪除原因：approach-2 有 Critical 安全問題；approach-4/5 依賴 gemini-1.5-flash（已退役，API 回 404）；approach-1 功能被 approach-3 取代。
@@ -38,7 +38,8 @@
 | 🔀 **Ctrl+F1 切換錄音** | 按一下開始，再按一下停止辨識貼上 |
 | ⚡ **Grok STT** | 平均 ~1.0s，延遲穩定 |
 | 🧠 **Cerebras LLM 修正** | ~170ms，修正繁簡混用 / 字間空格 / 標點 / 術語人名 |
-| 📋 **詞彙無上限** | `llm_prompt` 可放數百術語，只改 config.json 不動 code |
+| 📖 **拼音詞彙第三層** | `user_vocab.json` 維護人名/公司名，無聲調拼音 fuzzy 比對（`蕭純云`→`蕭淳云`），詞彙數量無上限，改檔不必重啟 |
+| 🗂 **管理詞彙選單** | 選單列「管理詞彙」可直接用 VSCode / 預設 App / Finder 開啟詞彙檔 |
 | 🔌 **Provider 切換** | config.json 一行切換 grok / openai / groq |
 | 🖥️ **macOS 26 相容** | rumps 主執行緒；pynput 貼上由 GCD 主執行緒執行（修正 TSM 崩潰）|
 | 📊 **Session log** | 每次辨識寫入 `~/.whisper_voice_log.db`（STT、LLM、貼上結果）|
@@ -110,9 +111,29 @@ CEREBRAS_API_KEY=csk-你的Key  ← 免費方案每天 1M tokens
 
 ### 新增術語 / 人名
 
-只需編輯 `config.json`，不需改 code，重啟生效：
+**推薦方式：編輯 `user_vocab.json`**（改完存檔即生效，不必重啟）
+
+```json
+{
+  "people":    ["蕭淳云", "周芷萓"],
+  "companies": ["加模"],
+  "projects":  ["Tahoe"],
+  "terms":     ["n8n", "Zeabur", "Slack"],
+  "overrides": { "家模": "加模" }
+}
+```
+
+- `people / companies / projects`：中文人名/公司名，進入**拼音 fuzzy 比對**（字音相同就替換）
+- `terms`：英文/數字術語，僅供 STT keyterms hint，不進拼音引擎
+- `overrides`：字面強制替換，優先於拼音比對（固定已知錯法）
+
+選單列「🗂 管理詞彙 → 用 VSCode 開啟」可快速開檔。
+
+**進階：直接調 config.json**（重啟生效）
 - `grok_keyterms`：STT 層詞彙 hint（≤10 個，每個 ≤50 字元）
-- `llm_prompt`：LLM 層完整指令，可放數百術語
+- `llm_prompt`：LLM 層完整指令
+
+> 若 `vocab.enabled` 設為 `false`，第三層停用，行為回到上版。
 
 ---
 
@@ -186,6 +207,16 @@ python scripts/test_cerebras.py
     "record_modifier": "ctrl",    // ctrl | shift | "" (空=無修飾鍵)
     "mode_cycle_key": "F10"
   },
+  "vocab": {
+    "enabled": true,
+    "file": "user_vocab.json",    // 詞彙檔路徑（相對於程式目錄）
+    "stt_keyterm_limit": 10,      // 從 vocab 取幾個詞餵給 STT keyterm
+    "match": {
+      "use_tone": false,          // false=無聲調比對（較寬鬆，推薦）
+      "require_surname_char_same": false,
+      "min_term_len": 2           // 單字詞不進拼音比對
+    }
+  },
   "modes": [ ... ],               // 見 config.json 各 mode 設定
   "ui": { "hud_enabled": false }  // macOS 26 上保持 false
 }
@@ -219,6 +250,7 @@ Ctrl+F1（第二下）
   → regex 修正（fallback 兜底）
   → Cerebras LLM 修正（~170ms，可選）
   → OpenCC 繁化兜底（偵測到簡體才轉）
+  → 拼音詞彙精修（user_vocab.json，無 API 呼叫，毫秒級）
   → pyperclip 寫剪貼簿 + osascript Cmd+V 貼上
     fallback → pynput（GCD 主執行緒）
   → SQLite session log
@@ -242,6 +274,8 @@ Ctrl+F1（第二下）
 | HTTP 429 | 提示「請求過於頻繁」|
 | 網路逾時（>30s）| 提示「網路逾時」|
 | Cerebras 失敗 | 降級：直接貼原始 STT 文字（不中斷）|
+| 詞彙層失敗 / 停用 | 降級：貼 OpenCC 輸出原文（不中斷）|
+| user_vocab.json 格式錯誤 | 保留上一次成功版本繼續運作，log 警告 |
 | osascript 貼上失敗 | fallback → pynput（GCD）→ 剪貼簿（手動 Cmd+V）|
 
 ### 費用參考

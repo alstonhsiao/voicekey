@@ -2,6 +2,43 @@
 
 ## Recent Progress
 
+### 2026-06-14 — 使用者自訂詞彙系統（第三層拼音 fuzzy 後處理）
+
+**完成 plan20260614.md 全部施工項目**
+
+#### 背景
+- 人名/公司名可能超過 100 筆，塞不進 Grok keyterm（硬上限 10）與 LLM prompt（token 暴增）。
+- STT 對中文人名常「音近字不同」（`蕭淳云`→`蕭純云`），純字面 regex 無法窮舉。
+
+#### 變更
+- 新增 `_voice_vocab.py`：`VocabStore` — 拼音索引 + `apply()` 替換引擎 + mtime 熱重載 + `load_vocab_store()`。
+  - 比對策略：無聲調全拼音（`pypinyin` NORMAL）+ 同字數；`overrides` 字面替換最高優先。
+  - 失敗一律降級回原文，絕不拋例外（比照 Cerebras fallback）。
+- 新增 `user_vocab.json`：類別化詞彙（people / companies / projects / terms / overrides），從 config.json 遷移現有人名/術語。
+- `config.json`：新增 `vocab` 區塊（`enabled` / `file` / `stt_keyterm_limit` / `match.{use_tone,require_surname_char_same,min_term_len}`）。
+- `_voice_config.py`：`load_config()` 帶入 `vocab` 區塊預設值與覆蓋邏輯。
+- `main.py`：import + init（log「詞彙修正：N 詞」）+ keyterm merge 進各 mode + 錄音前 `maybe_reload()` 熱重載 + pipeline 第三層插入（OpenCC 後、貼上前）+ session log 多記 `vocab_out`。
+- `_voice_menubar.py`：新增「🗂 管理詞彙」子選單（路徑灰字顯示 + VSCode/預設 App/Finder 三動作，全 try/except）。`build_menubar_app()` 多收 `vocab_path`。
+- `_voice_session.py`：migration 加 `vocab_out TEXT` 欄位。
+- `requirements.txt`：加 `pypinyin==0.55.0`（實際安裝版本）。
+- `INDEX.md` / `AGENTS.md`：記錄第三層架構。
+
+#### 驗證
+- `scripts/test_vocab.py` 三案例全過：`王之名`/`王之明`→`王志明`、`王大明` 不變；外加句中嵌入、overrides、已正確不重複改。
+- 真實 config 整合測試：`蕭純云`→`蕭淳云`（拼音命中）、`家模公司`→`加模公司`（override）、keyterms 載入正確。
+- `py_compile` 全數通過。
+- 待使用者端到端錄音測試（見 plan §6）。
+
+### 2026-06-13 — macOS 空辨識診斷
+
+- 現象：YouTube Music 播放時啟動錄音，音樂聲音有變化，但 Grok STT 回傳空文字。
+- log 結論：Grok STT HTTP 200 成功，`raw STT` 為空字串，非 API key / provider 連線錯誤。
+- 音訊裝置：macOS 預設輸入/輸出皆為藍牙 `EJZZ EXJ-II`；開啟輸入串流會讓藍牙音訊切換/變化，這只代表麥克風通道被打開，不代表系統音訊被錄入。
+- 實測：預設輸入錄 4 秒 RMS 約 `-53 dBFS`、peak 約 `-40 dBFS`，接近背景噪音，足以解釋 STT 判定無可辨識語音。
+- 補查：系統設定截圖中的「語音控制 → 麥克風」是 Apple Voice Control 專用設定，不等於 sounddevice/CoreAudio 預設輸入。`USB Audio & HID` 可被程式指定為 input device，但直接錄 4 秒 RMS 約 `-76.8 dBFS`，仍接近靜音。
+- 變更：`recording.input_device` 支援指定 input device，`config.json` 已設為 `USB Audio & HID`；錄音開始/停止會 log 實際裝置與 RMS/Peak。
+- 下一步：若目標是轉錄 YouTube/系統聲音，需加入 loopback/虛擬音訊裝置（如 BlackHole）與 input device 選擇；若目標是口述，需確認麥克風輸入音量與裝置。
+
 ### 2026-06-12 — Security + Refactor（P0/P1/P2 完成）
 
 - P0：`~/.whisper_voice_log.db` chmod 600；刪除重複根目錄 `.env.local`

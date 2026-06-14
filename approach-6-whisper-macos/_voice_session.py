@@ -49,7 +49,7 @@ class SessionLogger:
         logger.info("📊 Session log: %s", self.DB_PATH)
 
     def _migrate(self):
-        new_cols = [("llm_finish_reason", "TEXT")]
+        new_cols = [("llm_finish_reason", "TEXT"), ("vocab_out", "TEXT")]
         for col, col_type in new_cols:
             try:
                 self._conn.execute(f"ALTER TABLE sessions ADD COLUMN {col} {col_type}")
