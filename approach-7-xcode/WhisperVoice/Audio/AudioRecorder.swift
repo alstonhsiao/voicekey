@@ -41,8 +41,15 @@ final class AudioRecorder {
         bufferSamples = 0
         beepFired = false
 
-        // Device selection (best-effort; falls back to default).
-        if let devID = CoreAudioDevices.find(deviceSpec), let au = engine.inputNode.audioUnit {
+        let input = engine.inputNode
+
+        // Step 1: prepare() first — this finalises the audioUnit and hardware format.
+        // outputFormat(forBus:) returns sampleRate=0 before prepare(), which breaks
+        // AVAudioConverter and silently produces 0 frames in the tap callback.
+        engine.prepare()
+
+        // Step 2: set device AFTER prepare so audioUnit is allocated.
+        if let devID = CoreAudioDevices.find(deviceSpec), let au = input.audioUnit {
             var mutableID = devID
             let st = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
                                           kAudioUnitScope_Global, 0, &mutableID,
@@ -51,10 +58,22 @@ final class AudioRecorder {
         }
         AppLog.info("🎙️ 錄音裝置：\(currentDeviceLabel())")
 
-        let input = engine.inputNode
+        // Step 3: read format AFTER prepare + device set — now reflects actual hardware.
         let inputFormat = input.outputFormat(forBus: 0)
-        converter = AVAudioConverter(from: inputFormat, to: targetFormat)
+        AppLog.info("🎙️ 輸入格式：\(inputFormat.sampleRate) Hz \(inputFormat.channelCount)ch")
+        guard inputFormat.sampleRate > 0 else {
+            AppLog.error("❌ 輸入格式無效（sampleRate=0），錄音中止 — 請確認麥克風已授權")
+            return
+        }
 
+        // Step 4: build converter; guard against init failure.
+        guard let conv = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            AppLog.error("❌ AVAudioConverter 初始化失敗（\(inputFormat.sampleRate)→\(targetFormat.sampleRate)）")
+            return
+        }
+        converter = conv
+
+        // Step 5: create output WAV file.
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("whispervoice-\(UUID().uuidString).wav")
         let settings: [String: Any] = [
@@ -75,10 +94,10 @@ final class AudioRecorder {
             return
         }
 
+        // Step 6: install tap and start.
         input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
             self?.process(buffer)
         }
-        engine.prepare()
         do {
             try engine.start()
             isRecording = true
