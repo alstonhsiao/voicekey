@@ -1,29 +1,36 @@
 import AVFoundation
 
-/// Records from the selected input device via AVAudioEngine, converts to
-/// 16 kHz mono PCM16, and writes a temp WAV. Mirrors approach-6 `_voice_audio.py`.
+/// Records from the selected input device via AVAudioEngine, mirrors approach-6 `_voice_audio.py`.
+///
+/// Design: audio thread only accumulates PCMBuffers in memory (like Python's frames list).
+/// Conversion to 16k mono PCM16 WAV happens in stop() on the calling thread,
+/// away from the real-time audio thread.
+///
+/// Key fix for macOS 26: installTap(format: nil) avoids the NSException that fires
+/// when a non-native AVAudioFormat is passed to InstallTapOnNode.
 final class AudioRecorder {
     private let sampleRate: Double
     private let deviceSpec: InputDeviceSpec
     private let beepThresholdSamples: Int
+    private let targetFormat: AVAudioFormat
 
     private let engine = AVAudioEngine()
-    private var converter: AVAudioConverter?
-    private let targetFormat: AVAudioFormat
-    private var file: AVAudioFile?
-    private var fileURL: URL?
+
+    // Audio thread writes; main thread reads only after engine.stop().
+    private var capturedBuffers: [AVAudioPCMBuffer] = []
+    private var capturedFormat: AVAudioFormat?
 
     private(set) var bufferSamples: Int = 0
     private(set) var isRecording = false
     private var beepFired = false
 
-    /// Called once (on an audio thread) when accumulated samples first exceed the beep threshold.
+    /// Called once on the audio thread when enough samples are buffered for a beep cue.
     var onBeepThreshold: (() -> Void)?
 
     init(config: RecordingConfig) {
         self.sampleRate = Double(config.sampleRate)
         self.deviceSpec = config.inputDevice
-        self.beepThresholdSamples = 4000   // ~0.25s at 16k, matches approach-6
+        self.beepThresholdSamples = 4000   // ~0.25 s at 16 k, matches approach-6
         self.targetFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32,
                                           sampleRate: Double(config.sampleRate),
                                           channels: 1,
@@ -40,15 +47,15 @@ final class AudioRecorder {
     func start() {
         bufferSamples = 0
         beepFired = false
+        capturedBuffers = []
+        capturedFormat = nil
 
         let input = engine.inputNode
 
-        // Step 1: prepare() first — this finalises the audioUnit and hardware format.
-        // outputFormat(forBus:) returns sampleRate=0 before prepare(), which breaks
-        // AVAudioConverter and silently produces 0 frames in the tap callback.
+        // prepare() first — allocates audioUnit so we can set the device.
         engine.prepare()
 
-        // Step 2: set device AFTER prepare so audioUnit is allocated.
+        // Set device after prepare so audioUnit exists.
         if let devID = CoreAudioDevices.find(deviceSpec), let au = input.audioUnit {
             var mutableID = devID
             let st = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
@@ -58,22 +65,88 @@ final class AudioRecorder {
         }
         AppLog.info("🎙️ 錄音裝置：\(currentDeviceLabel())")
 
-        // Step 3: read format AFTER prepare + device set — now reflects actual hardware.
-        let inputFormat = input.outputFormat(forBus: 0)
-        AppLog.info("🎙️ 輸入格式：\(inputFormat.sampleRate) Hz \(inputFormat.channelCount)ch")
-        guard inputFormat.sampleRate > 0 else {
-            AppLog.error("❌ 輸入格式無效（sampleRate=0），錄音中止 — 請確認麥克風已授權")
-            return
+        // Install tap with format:nil — engine delivers buffers in native hardware format.
+        // Passing a specific AVAudioFormat here triggers NSException in macOS 26 when the
+        // channel layout descriptor doesn't match AVAudioEngine's internal expectation.
+        input.installTap(onBus: 0, bufferSize: 4096, format: nil) { [weak self] buf, _ in
+            self?.collect(buf)
         }
 
-        // Step 4: build converter; guard against init failure.
-        guard let conv = AVAudioConverter(from: inputFormat, to: targetFormat) else {
-            AppLog.error("❌ AVAudioConverter 初始化失敗（\(inputFormat.sampleRate)→\(targetFormat.sampleRate)）")
-            return
+        do {
+            try engine.start()
+            isRecording = true
+            let fmt = input.outputFormat(forBus: 0)
+            AppLog.info("🎙️ 輸入格式：\(fmt.sampleRate) Hz \(fmt.channelCount)ch")
+        } catch {
+            AppLog.error("❌ 錄音啟動失敗（可能未授權麥克風）：\(error)")
+            input.removeTap(onBus: 0)
         }
-        converter = conv
+    }
 
-        // Step 5: create output WAV file.
+    // Called on real-time audio thread — no allocation beyond buffer copy, no disk I/O.
+    private func collect(_ buffer: AVAudioPCMBuffer) {
+        if capturedFormat == nil { capturedFormat = buffer.format }
+        if let copy = shallowCopy(buffer) {
+            capturedBuffers.append(copy)
+        }
+        bufferSamples += Int(buffer.frameLength)
+        if !beepFired && bufferSamples > beepThresholdSamples {
+            beepFired = true
+            onBeepThreshold?()
+        }
+    }
+
+    private func shallowCopy(_ src: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        guard let dst = AVAudioPCMBuffer(pcmFormat: src.format,
+                                         frameCapacity: src.frameLength) else { return nil }
+        dst.frameLength = src.frameLength
+        let chCount = Int(src.format.channelCount)
+        if src.format.commonFormat == .pcmFormatFloat32,
+           let s = src.floatChannelData, let d = dst.floatChannelData {
+            for ch in 0..<chCount {
+                memcpy(d[ch], s[ch], Int(src.frameLength) * MemoryLayout<Float32>.size)
+            }
+            return dst
+        }
+        if src.format.commonFormat == .pcmFormatInt16,
+           let s = src.int16ChannelData, let d = dst.int16ChannelData {
+            for ch in 0..<chCount {
+                memcpy(d[ch], s[ch], Int(src.frameLength) * MemoryLayout<Int16>.size)
+            }
+            return dst
+        }
+        return nil
+    }
+
+    /// Stop recording. Returns (wavURL, duration). nil URL if < 0.5 s (ignored).
+    /// Conversion and WAV write happen here, on the calling (main) thread.
+    /// Caller owns the returned file and must delete it after use.
+    func stop() -> (URL?, Double) {
+        if isRecording {
+            engine.inputNode.removeTap(onBus: 0)
+            engine.stop()      // blocks until audio thread is fully stopped
+            isRecording = false
+        }
+
+        guard let hwFmt = capturedFormat, !capturedBuffers.isEmpty else { return (nil, 0.0) }
+
+        let duration = Double(bufferSamples) / hwFmt.sampleRate
+        if duration < 0.5 {
+            capturedBuffers = []
+            return (nil, duration)
+        }
+
+        return writeWAV(buffers: capturedBuffers, hwFormat: hwFmt, duration: duration)
+    }
+
+    private func writeWAV(buffers: [AVAudioPCMBuffer],
+                          hwFormat: AVAudioFormat,
+                          duration: Double) -> (URL?, Double) {
+        guard let converter = AVAudioConverter(from: hwFormat, to: targetFormat) else {
+            AppLog.error("❌ AVAudioConverter 初始化失敗（\(hwFormat.sampleRate)→\(sampleRate)）")
+            return (nil, 0.0)
+        }
+
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("whispervoice-\(UUID().uuidString).wav")
         let settings: [String: Any] = [
@@ -85,74 +158,29 @@ final class AudioRecorder {
             AVLinearPCMIsBigEndianKey: false,
             AVLinearPCMIsNonInterleaved: false,
         ]
-        do {
-            file = try AVAudioFile(forWriting: url, settings: settings,
-                                   commonFormat: .pcmFormatFloat32, interleaved: false)
-            fileURL = url
-        } catch {
-            AppLog.error("❌ 無法建立 WAV 檔：\(error)")
-            return
+        guard let file = try? AVAudioFile(forWriting: url, settings: settings,
+                                          commonFormat: .pcmFormatFloat32,
+                                          interleaved: false) else {
+            AppLog.error("❌ 無法建立 WAV 檔")
+            return (nil, 0.0)
         }
 
-        // Step 6: install tap and start.
-        input.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) { [weak self] buffer, _ in
-            self?.process(buffer)
+        let ratio = targetFormat.sampleRate / hwFormat.sampleRate
+        for inputBuffer in buffers {
+            let cap = AVAudioFrameCount(Double(inputBuffer.frameLength) * ratio) + 16
+            guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: cap) else { continue }
+            var fed = false
+            converter.convert(to: out, error: nil) { _, status in
+                if fed { status.pointee = .noDataNow; return nil }
+                fed = true
+                status.pointee = .haveData
+                return inputBuffer
+            }
+            if out.frameLength > 0 { try? file.write(from: out) }
         }
-        do {
-            try engine.start()
-            isRecording = true
-        } catch {
-            AppLog.error("❌ 錄音啟動失敗（可能未授權麥克風）：\(error)")
-            input.removeTap(onBus: 0)
-            file = nil
-            fileURL = nil
-        }
-    }
 
-    private func process(_ inputBuffer: AVAudioPCMBuffer) {
-        guard let converter, let file else { return }
-        let ratio = targetFormat.sampleRate / inputBuffer.format.sampleRate
-        let capacity = AVAudioFrameCount(Double(inputBuffer.frameLength) * ratio) + 16
-        guard let out = AVAudioPCMBuffer(pcmFormat: targetFormat, frameCapacity: capacity) else { return }
-
-        var fed = false
-        var err: NSError?
-        converter.convert(to: out, error: &err) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true
-            status.pointee = .haveData
-            return inputBuffer
-        }
-        if err != nil || out.frameLength == 0 { return }
-        do { try file.write(from: out) } catch { return }
-
-        bufferSamples += Int(out.frameLength)
-        if !beepFired && bufferSamples > beepThresholdSamples {
-            beepFired = true
-            onBeepThreshold?()
-        }
-    }
-
-    /// Stop recording. Returns (wavURL, seconds). nil URL if < 0.5s (ignored).
-    /// Caller owns the returned file and must delete it after use.
-    func stop() -> (URL?, Double) {
-        if isRecording {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-            isRecording = false
-        }
-        let frames = bufferSamples
-        let duration = Double(frames) / sampleRate
-        let url = fileURL
-        file = nil          // flush & close
-        fileURL = nil
-        converter = nil
-
-        guard let url else { return (nil, 0.0) }
-        if duration < 0.5 {
-            try? FileManager.default.removeItem(at: url)
-            return (nil, duration)
-        }
+        capturedBuffers = []
+        AppLog.info("💾 WAV 已存：\(url.lastPathComponent)（\(String(format: "%.1f", duration))s）")
         return (url, duration)
     }
 }
