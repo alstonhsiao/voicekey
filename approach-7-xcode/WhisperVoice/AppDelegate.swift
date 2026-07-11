@@ -32,8 +32,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             var loaded = try ConfigLoader.load()
             Secrets.apply(to: &loaded)
             let vs = VocabStores(config: loaded)
-            VocabStores.mergeKeyterms(into: &loaded.modes, vocab: vs,
-                                      limit: loaded.vocab.sttKeytermLimit)
             cfg = loaded
             vocab = vs
             mm = ModeManager(modes: loaded.modes, defaultId: loaded.defaultModeId)

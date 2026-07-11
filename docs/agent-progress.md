@@ -2,6 +2,18 @@
 
 ## Recent Progress
 
+### 2026-07-11 — approach-7：STT keyterm merge 改為每次錄音動態合併（修正假熱重載）
+
+- **問題**（源自 approach-6 review，原樣移植進 approach-7）：
+  1. vocab / layer1 keyterms 只在啟動時 merge 進 `Mode.grokKeyterms` 一次 → 詞彙檔熱重載對 STT 層無效（文件宣稱「改檔不必重啟」與實際不符）。
+  2. merge 順序為「mode 靜態 keyterms 優先」+ 截斷至 `stt_keyterm_limit`（10）→ direct 模式 config 已寫死 11 個 keyterms，user_vocab / layer1 的詞永遠擠不進 STT。
+- **修法**（僅動 approach-7；approach-6 凍結不動，作為退路）：
+  - `VocabStores.mergeKeyterms(into:)` 啟動時整批改寫 modes → 改為 `effectiveKeyterms(for:limit:)`，在 `VoiceController.processRecording` 每次錄音時動態計算（`maybeReloadAll()` 之後，故熱重載真正生效）。
+  - 合併優先序改為 **user vocab（layer3）→ layer1 → mode 靜態 keyterms**，使用者維護的詞彙檔不再被靜態設定擠出。
+  - `Mode.grokKeyterms` 語義改為「config 原始 base 值」，不再於啟動時被改寫。
+- 測試：新增 `testMergeKeytermsUserVocabWinsOverStaticModeList`、`testMergeKeytermsDedupsAndSkipsEmpty`；**34 tests green**（`CODE_SIGNING_ALLOWED=NO` + `DEVELOPER_DIR` 指向 Xcode.app）。
+- 決策記錄：approach-6 → approach-7 為最終遷移方向；approach-6 凍結、待 approach-7 穩定使用一段時間後刪除。所有後續改善只做在 approach-7。
+
 ### 2026-06-14 — approach-7-xcode：原生 Swift/AppKit 版（Phase 0→7 全數完成）
 
 **一口氣完成 planxcode060614.md 全部 7 個 Phase，每個 Phase `xcodebuild` 通過。**

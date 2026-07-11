@@ -16,7 +16,10 @@ struct Mode {
     let translateToEnglish: Bool
     let prompt: String
     let regexRules: [RegexRule]
-    /// Mutable: merged with vocab/layer1 keyterms once at startup (matches Python).
+    /// Base keyterms from config. The effective per-recording list is built by
+    /// VocabStores.effectiveKeyterms (vocab/layer1 first, then these) so vocab
+    /// hot-reload reaches the STT layer; mutable so VoiceController can swap in
+    /// the merged list on its local copy before transcribing.
     var grokKeyterms: [String]
     let llmPrompt: String
 

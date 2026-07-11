@@ -109,4 +109,26 @@ final class VocabStoreTests: XCTestCase {
         let store = Layer2VocabStore(path: url)
         XCTAssertEqual(store.buildInjection(), "")
     }
+
+    // MARK: - STT keyterm merge
+
+    func testMergeKeytermsUserVocabWinsOverStaticModeList() {
+        // Mode already fills the limit by itself — user vocab must still get in.
+        let modeTerms = (1...10).map { "static\($0)" }
+        let merged = VocabStores.mergeKeyterms(vocabTerms: ["蕭淳云", "加模"],
+                                               layer1Terms: ["Zeabur"],
+                                               modeTerms: modeTerms,
+                                               limit: 10)
+        XCTAssertEqual(merged.count, 10)
+        XCTAssertEqual(Array(merged.prefix(3)), ["蕭淳云", "加模", "Zeabur"])
+        XCTAssertEqual(merged[3...].map { $0 }, (1...7).map { "static\($0)" })
+    }
+
+    func testMergeKeytermsDedupsAndSkipsEmpty() {
+        let merged = VocabStores.mergeKeyterms(vocabTerms: ["n8n", ""],
+                                               layer1Terms: ["n8n", "Zeabur"],
+                                               modeTerms: ["Zeabur", "API"],
+                                               limit: 10)
+        XCTAssertEqual(merged, ["n8n", "Zeabur", "API"])
+    }
 }

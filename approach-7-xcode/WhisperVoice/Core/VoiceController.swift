@@ -75,7 +75,11 @@ final class VoiceController {
     }
 
     private func processRecording(targetApp: NSRunningApplication?) {
-        let mode = modeManager.current
+        // Merge STT keyterms per recording (vocab layers were hot-reloaded at
+        // record start): user vocab + layer1 first, then the mode's base list.
+        var mode = modeManager.current
+        mode.grokKeyterms = vocab.effectiveKeyterms(for: mode,
+                                                    limit: config.vocab.sttKeytermLimit)
         setState(.processing)
         Task {
             defer {

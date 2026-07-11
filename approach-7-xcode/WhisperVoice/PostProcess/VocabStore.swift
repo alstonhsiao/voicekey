@@ -283,18 +283,26 @@ final class VocabStores {
         }
     }
 
-    /// Merge mode keyterms + layer3 + layer1 (dedup, truncate). Once at startup.
-    /// Mirrors approach-6 main.py keyterm merge.
-    static func mergeKeyterms(into modes: inout [Mode], vocab: VocabStores, limit: Int) {
-        let extra = (vocab.layer3?.sttKeyterms ?? []) + vocab.layer1.keyterms
-        for i in modes.indices {
-            var seen = Set<String>()
-            var merged: [String] = []
-            for kw in modes[i].grokKeyterms + extra where !kw.isEmpty && !seen.contains(kw) {
-                seen.insert(kw)
-                merged.append(kw)
-            }
-            modes[i].grokKeyterms = Array(merged.prefix(limit))
+    /// Effective STT keyterms for one recording.
+    /// Computed per recording (after maybeReloadAll) so vocab-file hot-reload
+    /// actually reaches the STT layer. User-editable files (layer3 + layer1)
+    /// come before the mode's static config keyterms so they are never crowded
+    /// out by a full static list once the limit truncates.
+    func effectiveKeyterms(for mode: Mode, limit: Int) -> [String] {
+        Self.mergeKeyterms(vocabTerms: layer3?.sttKeyterms ?? [],
+                           layer1Terms: layer1.keyterms,
+                           modeTerms: mode.grokKeyterms,
+                           limit: limit)
+    }
+
+    static func mergeKeyterms(vocabTerms: [String], layer1Terms: [String],
+                              modeTerms: [String], limit: Int) -> [String] {
+        var seen = Set<String>()
+        var merged: [String] = []
+        for kw in vocabTerms + layer1Terms + modeTerms where !kw.isEmpty && !seen.contains(kw) {
+            seen.insert(kw)
+            merged.append(kw)
         }
+        return Array(merged.prefix(limit))
     }
 }
