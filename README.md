@@ -7,6 +7,8 @@
 > 文件索引：僅本檔（根目錄）使用 `README.md`；各子資料夾以 `INDEX.md` 為入口（見 [docs/INDEX.md](docs/INDEX.md)）。  
 > Agent 開工先讀 [AGENTS.md](AGENTS.md)。
 
+**現況（2026-07-12）**：主力 VoiceKey 本機煙測通過（錄音→STT→LLM→貼上）；分發包產製腳本與跨機 INSTALL 已就緒；`.app` 的 zip/dmg **不進 git**，需本機 `package` 後另傳。
+
 ---
 
 ## 方案一覽
@@ -86,13 +88,19 @@ cd voicekey
 # → voicekey/dist/VoiceKey-macOS-YYYYMMDD.zip 與 .dmg
 ```
 
-2. 把 zip/dmg 拷到目標機（AirDrop / USB / 內網）。  
-   二進位產物**預設不進 git**（體積與簽章為本機產物）；安裝說明在 repo：  
-   [voicekey/dist/INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md)
+2. 把 **zip 或 dmg** 拷到目標機（AirDrop / USB / 內網）。  
+   - 二進位**不在 git**（clone 後沒有 `.app`）；只有安裝說明在 repo  
+   - 說明：[voicekey/dist/INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md)
 
-3. 目標機：拖 `VoiceKey.app` → `/Applications` → **右鍵「開啟」**（未 notarize，Gatekeeper 提示屬正常）→ 設定各機 `env.local` 與權限。
+3. 目標機步驟摘要：
+   - 拖 `VoiceKey.app` → `/Applications`
+   - **右鍵「開啟」**（未 notarize，Gatekeeper 提示屬正常）或 `xattr -dr com.apple.quarantine /Applications/VoiceKey.app`
+   - 各機自備 `~/Library/Application Support/VoiceKey/env.local`（API keys，`chmod 600`）
+   - （選配）`config.local.json` 指定 `recording.input_device`
+   - 允許 **麥克風** + **輔助使用**；`Ctrl+F1` 煙測
+   - Log：`~/Library/Logs/VoiceKey/app.log`
 
-也可請目標機上的 AI agent 依下方「跨機部署 prompt」執行（需你先提供 zip/dmg 路徑與 API keys）。
+也可請目標機上的 AI agent 執行安裝（需你提供 zip/dmg 路徑與 API keys）。
 
 ---
 

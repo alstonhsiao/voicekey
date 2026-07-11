@@ -5,7 +5,7 @@
 ## Mission
 語音轉文字工具（Grok STT + Cerebras LLM，macOS 主力）。
 **主力方案**：VoiceKey（`voicekey/`，原 approach-7 / WhisperVoice，2026-07-11 改名）— 原生 Swift/AppKit 版，34 單元測試綠。**本機實機已通過**（含 2026-07-12 煙測）：錄音→Grok STT→Cerebras LLM→拼音詞彙→自動貼上。功能與 approach-6 對等（OpenCC 層省略）。bundle id `com.alston.VoiceKey`；舊 WhisperVoice 資料（App Support 詞彙檔、keychain、session DB）首次啟動自動遷移。
-**分發**：`./package.sh && ./make-distribution.sh` → `voicekey/dist/VoiceKey-macOS-YYYYMMDD.{zip,dmg}`；跨機步驟見 `voicekey/dist/INSTALL-zh-TW.md`。
+**分發**：`./package.sh && ./make-distribution.sh` → `voicekey/dist/VoiceKey-macOS-YYYYMMDD.{zip,dmg}`。**zip/dmg 不進 git**（本機產物，跨機用 AirDrop/USB 傳）；說明文件進 git：`voicekey/dist/INSTALL-zh-TW.md`。
 **凍結方案（退路）**：approach-6（`approach-6-whisper-macos/`）— Python 版。**2026-07-11 起凍結不再修改**；所有改善只做在 VoiceKey。
 **封存方案**：approach-3（`approach-3-python-exe/`）— Windows .exe，勿修改。
 **架構**：Grok STT（第一層）→ Cerebras LLM（第二層修正）→ 拼音詞彙（第三層精修）。
@@ -17,6 +17,7 @@
 - Prefer changes inside `voicekey/`；勿改 approach-6 / approach-3 unless explicitly requested.
 - Prioritize high-risk constraints and validation steps before implementation.
 - If requirement is unclear and risk is non-trivial, mark as `NEED_REVIEW` instead of guessing.
+- **Repo 在 iCloud 目錄時**：`git status` / ahead-behind / `rev-list` 可能卡住；用 `git -c status.aheadBehind=false`，或在 `/tmp` 複本上 commit/push。
 
 ## Default Execution Flow
 1. Read `AGENTS.md` (this file).

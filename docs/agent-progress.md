@@ -2,6 +2,12 @@
 
 ## Recent Progress
 
+### 2026-07-12 — AGENTS/README 補強（分發不進 git、跨機步驟、iCloud git）
+
+- `AGENTS.md`：明寫 zip/dmg 不進 git；iCloud 目錄下 git 易卡（aheadBehind / 改 `/tmp` 複本）。
+- `README.md`：現況日期列；跨機步驟補 env.local / 權限 / log。
+- GitHub：`docs` 向 commit 推送（若本機 tip 與 origin hash 不同但內容已對齊，屬 iCloud 路徑重建 commit 現象）。
+
 ### 2026-07-12 — 分發產物對齊 VoiceKey + 跨機包重產（B 路徑）
 
 - **文件**：`voicekey/dist/INSTALL-zh-TW.md` 全面改寫（VoiceKey 命名、bundle id、env.local、`config.local.json` 多機麥克風、舊 WhisperVoice 遷移、Gatekeeper）。
