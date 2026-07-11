@@ -81,7 +81,8 @@ final class MenuBarController {
 
         menu.addItem(.separator())
 
-        menu.addItem(actionItem("ℹ️ 關於 VoiceKey（\(Self.versionString)）") {
+        // 注意：不要用 ℹ️（U+2139+FE0F）— 它在選單裡字寬比一般 emoji 窄，會導致整行縮排歪掉。
+        menu.addItem(actionItem("📦 關於 VoiceKey (\(Self.versionString))") {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.orderFrontStandardAboutPanel(nil)
         })
