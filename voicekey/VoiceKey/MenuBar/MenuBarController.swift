@@ -38,6 +38,14 @@ final class MenuBarController {
         }
     }
 
+    /// "v0.1.0 build 42" — 讀自 Info.plist（build 號由 package.sh 以 git commit 數注入）。
+    private static var versionString: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let build = info?["CFBundleVersion"] as? String ?? "?"
+        return "v\(version) build \(build)"
+    }
+
     private static func title(for state: VoiceState) -> String {
         switch state {
         case .idle:       return "⏸ 待機"
@@ -72,6 +80,11 @@ final class MenuBarController {
         menu.addItem(vocabSubmenu("🗂 第三層 — 拼音替換詞", vocab.vocabPath.lastPathComponent, vocab.vocabPath))
 
         menu.addItem(.separator())
+
+        menu.addItem(actionItem("ℹ️ 關於 VoiceKey（\(Self.versionString)）") {
+            NSApp.activate(ignoringOtherApps: true)
+            NSApp.orderFrontStandardAboutPanel(nil)
+        })
 
         let quit = NSMenuItem(title: "❌ 結束程式",
                               action: #selector(NSApplication.terminate(_:)),

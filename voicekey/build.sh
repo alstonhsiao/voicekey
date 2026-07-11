@@ -10,11 +10,15 @@ cd "$(dirname "$0")"
 CONFIG="${1:-Debug}"
 DD="${VOICEKEY_DD:-$HOME/Library/Developer/VoiceKey-DD}"
 
+# build 號 = git commit 數，讓每個 build 可對回 commit（選單「關於」會顯示）。
+BUILD_NUM="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+
 xcodegen generate
 xcodebuild -project VoiceKey.xcodeproj \
   -scheme VoiceKey \
   -configuration "$CONFIG" \
   -derivedDataPath "$DD" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUM" \
   build
 
 echo ""
