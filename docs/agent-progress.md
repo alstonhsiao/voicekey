@@ -2,6 +2,17 @@
 
 ## Recent Progress
 
+### 2026-07-11 — 改名：approach-7 / WhisperVoice → VoiceKey
+
+- **範圍**：目錄 `approach-7-xcode/` → `voicekey/`（git mv，保留歷史）；target/module/scheme `WhisperVoice` → `VoiceKey`；bundle id → `com.alston.VoiceKey`；簽章 identity → `"VoiceKey Self-Signed"`（`setup-signing-cert.sh` 已同步，需重跑一次）；`WHISPERVOICE_DD` / `WHISPERVOICE_ENV_FILE` → `VOICEKEY_DD` / `VOICEKEY_ENV_FILE`（env file 舊名仍向下相容）。
+- **舊資料自動遷移**（首次啟動，皆不覆蓋既有新檔）：
+  - App Support `WhisperVoice/` → `VoiceKey/`（詞彙檔、env.local、config.local.json 逐檔複製）
+  - keychain：讀取時 fallback 舊 service `com.alston.WhisperVoice`
+  - session DB：`~/.whisper_voice_log.db` → 複製為 `~/.voicekey_log.db`
+- 舊 xcodeproj 生成物（含 iCloud 產生的 `WhisperVoice 2/3.xcodeproj`）已刪除，`VoiceKey.xcodeproj` 由 xcodegen 重新生成（本機已 `brew install xcodegen`）。
+- 驗證：`xcodebuild test`（`CODE_SIGNING_ALLOWED=NO`）**34 tests green**。
+- **待使用者**：① 跑 `bash voicekey/setup-signing-cert.sh` 建新憑證；② Release build 安裝 `/Applications/VoiceKey.app`、移除舊 `WhisperVoice.app`；③ 重新授權麥克風＋輔助使用（bundle id 變更，TCC 必掉，屬預期一次性成本）。
+
 ### 2026-07-11 — approach-7：STT keyterm merge 改為每次錄音動態合併（修正假熱重載）
 
 - **問題**（源自 approach-6 review，原樣移植進 approach-7）：
@@ -14,12 +25,76 @@
 - 測試：新增 `testMergeKeytermsUserVocabWinsOverStaticModeList`、`testMergeKeytermsDedupsAndSkipsEmpty`；**34 tests green**（`CODE_SIGNING_ALLOWED=NO` + `DEVELOPER_DIR` 指向 Xcode.app）。
 - 決策記錄：approach-6 → approach-7 為最終遷移方向；approach-6 凍結、待 approach-7 穩定使用一段時間後刪除。所有後續改善只做在 approach-7。
 
-### 2026-06-14 — approach-7-xcode：原生 Swift/AppKit 版（Phase 0→7 全數完成）
+### 2026-06-19 — 台灣口語數字轉半形阿拉伯數字 + approach-7 更新安裝
+
+- approach-6 / approach-7 三個中文模式（direct / pro / casual）的 Cerebras `llm_prompt` 已同步加入數字格式規則：
+  - 具體數值轉為半形阿拉伯數字；次數、序數、一般量詞保留中文。
+  - 台灣口語省略：`四百一→410`、`兩千五→2500`、`三萬二→32000`。
+  - 明說零時跳過位數：`四百零一→401`、`兩千零五→2005`、`三萬零二→30002`。
+  - 明確禁止 LLM 改變數值、執行計算或回答原文問題。
+- `ConfigMergeTests.testBundledConfigLoads` 新增三個中文模式的規則存在性驗證。
+- 驗證：
+  - 兩份 config JSON 合法且內容一致。
+  - Cerebras 連線測試成功。
+  - Xcode 單元測試：**32 tests green，1 live API test skipped**。
+  - 以使用者原句直接實測 Cerebras，結果為「十次的零，然後一次300，一次410」，且未回答標準差。
+- approach-7 Release 以 `CODE_SIGNING_ALLOWED=NO` 建置後 ad-hoc 簽章，`codesign --verify --deep --strict` 通過；已結束舊 approach-6 Python 程序、移除舊 `/Applications/WhisperVoice.app`、安裝新版並成功啟動，目前僅剩新原生版執行。
+- 注意：ad-hoc rebuild 後 `AXIsProcessTrusted=false`，使用者需在「系統設定 → 隱私與安全性 → 輔助使用」重新開啟 WhisperVoice，才會恢復自動 Cmd+V；未授權時文字仍會留在剪貼簿。
+
+### 2026-06-15 — voicekey：本機安裝完成（Xcode 26.5）
+
+- 本機已確認存在完整 Xcode：`/Applications/Xcode.app`；`xcode-select` 仍指向 Command Line Tools，因此本次以 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` 直接建置，未改全系統設定。
+- 由於 `WhisperVoice Self-Signed` 憑證僅有 certificate、缺可用 codesigning identity，Release build 的正式簽章在 `CodeSign ... errSecInternalComponent` 失敗；本次改走 **ad-hoc** 路徑完成安裝，不阻塞使用。
+- 驗證：
+  - `xcodebuild -project WhisperVoice.xcodeproj -scheme WhisperVoice -configuration Release ... CODE_SIGNING_ALLOWED=NO build` 通過
+  - `xcodebuild ... test CODE_SIGNING_ALLOWED=NO` 通過：**32 tests green，1 live API test skipped**
+  - ad-hoc `codesign --force --deep --sign -` 後，`codesign --verify --deep --strict` 通過
+  - 已以 `ditto` 安裝到 `/Applications/WhisperVoice.app`，並成功啟動（PID 73151）
+- 本機設定：
+  - `env.local` 已放到 `~/Library/Application Support/WhisperVoice/env.local`，權限 `600`
+  - 首次啟動後 `layer1_keyterms.json`、`layer2_corrections.json`、`user_vocab.json` 已種到 App Support
+- 注意：目前 `/Applications/WhisperVoice.app` 為 **ad-hoc** 簽章；若未來改用 self-signed 固定 identity，可避免 rebuild 後 Accessibility 授權掉失。
+
+### 2026-06-15 — voicekey：建立可分發 zip / dmg
+
+- 新增分發腳本：`voicekey/make-distribution.sh`
+  - 來源預設取 `~/Library/Developer/WhisperVoice-DD-Adhoc/Build/Products/Release/WhisperVoice.app`
+  - 產出到 `voicekey/dist/`
+- 新增安裝說明與範例設定：
+  - `voicekey/dist/INSTALL-zh-TW.md`
+  - `voicekey/dist/env.local.example`
+- 已產出：
+  - `voicekey/dist/WhisperVoice-macOS-20260615.zip`
+  - `voicekey/dist/WhisperVoice-macOS-20260615.dmg`
+- 驗證：
+  - `zip` 內容包含 `WhisperVoice.app`、`INSTALL-zh-TW.md`、`env.local.example`
+  - `dmg` 掛載後內容正確，並附 `/Applications` 捷徑
+  - 目前分發包內 App 仍為 **ad-hoc** 簽章；跨機首次需右鍵「開啟」或移除 quarantine
+
+### 2026-06-14 — voicekey：修復錄音啟動卡死造成選單列無反應
+
+#### 現象
+- `/Applications/WhisperVoice.app` PID `83966` CPU 偏高；log 最後停在 `21:58:58 🔴 錄音中...`，沒有後續「錄音裝置 / 硬體格式 / WAV 已存」。
+- `sample 83966` 顯示主執行緒卡在 `VoiceController.startRecording()` → `AudioRecorder.start()` → `AVAudioEngine.inputNode` / CoreAudio HAL 查詢，因此 AppKit event loop 被堵住，選單與「結束程式」也無反應。
+
+#### 變更
+- `AudioRecorder.start()` 改為回傳 Bool；啟動失敗會復原 `isRecording=false`。
+- `VoiceController` 新增 `recordingQueue`，把 `recorder.start()` 與 `recorder.stop()` 放到同一個 serial queue，避免 CoreAudio 同步查詢卡住主執行緒。
+- `GOTCHAS-xcode.md` 新增 1d：`AVAudioEngine.inputNode/inputFormat` 偶發卡住的症狀、根因與解法。
+
+#### 處置與驗證
+- 先以 `kill -TERM 83966` 正常結束卡住的舊 app。
+- `./build.sh Release` 通過，已用 `ditto` 更新 `/Applications/WhisperVoice.app`。
+- `codesign --verify --deep --strict --verbose=2 /Applications/WhisperVoice.app` 通過，簽章仍為 `WhisperVoice Self-Signed`。
+- `./test.sh` 通過：32 tests green，live API test 依設定 skip。
+- 已重新啟動 `/Applications/WhisperVoice.app`，新 PID `8466`；log 顯示熱鍵、麥克風、輔助使用皆授權成功。
+
+### 2026-06-14 — voicekey：原生 Swift/AppKit 版（Phase 0→7 全數完成）
 
 **一口氣完成 planxcode060614.md 全部 7 個 Phase，每個 Phase `xcodebuild` 通過。**
 
 #### 成果
-- 新建 `approach-7-xcode/`（與 approach-6 並排存活，OpenCC 層省略）。xcodegen（`project.yml`）+ `xcodebuild` headless build；ad-hoc 簽章。
+- 新建 `voicekey/`（與 approach-6 並排存活，OpenCC 層省略）。xcodegen（`project.yml`）+ `xcodebuild` headless build；ad-hoc 簽章。
 - 模組對照 approach-6：`Config`(+config.local.json deep merge/schema)、`Mode/ModeManager`、`Secrets`(env→Keychain)、`AudioRecorder`(AVAudioEngine→16k mono PCM16 + CoreAudio 裝置選擇)、`HotkeyManager`(**Carbon RegisterEventHotKey，免「輸入監控」授權**)、`TranscribeProvider`(Grok/OpenAI/Groq)、`CerebrasProvider`(失敗降級不拋例外)、`RegexCorrections`、三層 `VocabStore`(+mtime 熱重載)、`PinyinEngine`(CFStringTransform)、`Paste`(NSPasteboard+CGEvent Cmd+V)、`MenuBarController`(狀態列+模式打勾+三層詞彙子選單)、`SessionLogger`(libsqlite3, ~/.whisper_voice_log.db, 600)、`SingleInstance`(flock)。
 - 詞彙檔首次啟動由 bundle 種子到 `~/Library/Application Support/WhisperVoice/`（可編輯、存檔即熱重載）。
 
@@ -29,7 +104,7 @@
 - **真實 API smoke test**（`say` 生成語音→真實 Grok STT→真實 Cerebras）通過：STT 回文字、Cerebras 修正大小寫生效。
 - **執行驗證**：4 模式載入、USB 麥克風列舉+候選自動選中、Carbon 熱鍵註冊成功、麥克風/輔助使用授權、vocab 種子化（12 詞）、session DB 18 欄（含 vocab_out/llm_finish_reason）權限 600、單例鎖（第二實例退出）、ad-hoc `codesign --verify` 通過。
 
-#### 待真人 / 已知問題（詳見 `approach-7-xcode/ISSUES-xcode.md`）
+#### 待真人 / 已知問題（詳見 `voicekey/ISSUES-xcode.md`）
 - 真人實機：按 Ctrl+F1 講中文、確認貼上+狀態列、Ctrl+F10/選單切模式。
 - 獨立 `.app`（雙擊）需各自勾選麥克風/輔助使用（與從終端機繼承不同）。
 - Gatekeeper 拒 ad-hoc（預期）：跨機右鍵→開啟或 `xattr -dr com.apple.quarantine`；notarization 需付費帳號，**日後選配**。

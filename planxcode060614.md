@@ -1,4 +1,4 @@
-# Plan — WhisperVoice Xcode 原生版（approach-7-xcode）
+# Plan — WhisperVoice Xcode 原生版（voicekey）
 
 > 建立日期：2026-06-14
 > 目標：把現役 Python 方案（approach-6）重寫為原生 Swift / AppKit macOS App，
@@ -13,10 +13,10 @@
 |---|---|
 | 功能範圍 | 與 approach-6 **完全對等**，不增不減（使用者已確認） |
 | OpenCC 繁化層 | **省略**（使用者已同意）。理由：Cerebras LLM prompt 已含「輸出繁體中文」，實測簡體問題由 LLM 解決 |
-| 並排存活 | Python（approach-6）保持不動；Xcode 版放在 `approach-7-xcode/` |
-| 退場機制 | 若 Xcode 版失敗，整個 `approach-7-xcode/` 刪除即可，Python 版零影響 |
+| 並排存活 | Python（approach-6）保持不動；Xcode 版放在 `voicekey/` |
+| 退場機制 | 若 Xcode 版失敗，整個 `voicekey/` 刪除即可，Python 版零影響 |
 | config.local.json | 一併實作（Handoff20260614.md 的多台 Mac 需求） |
-| 執行模式 | **一口氣 Phase 0→7 不停**；需真人操作/無法繞過的問題記入 `approach-7-xcode/ISSUES-xcode.md`，跑完一次回報（見 §7） |
+| 執行模式 | **一口氣 Phase 0→7 不停**；需真人操作/無法繞過的問題記入 `voicekey/ISSUES-xcode.md`，跑完一次回報（見 §7） |
 | 建置工具 | 完整 Xcode + xcodegen + xcodebuild headless |
 | 簽章 | ad-hoc 自用（notarization 日後選配） |
 
@@ -63,10 +63,10 @@
 
 ---
 
-## 3. 目錄結構（approach-7-xcode/）
+## 3. 目錄結構（voicekey/）
 
 ```
-approach-7-xcode/
+voicekey/
 ├── project.yml                        # xcodegen 宣告式設定（納管）→ 生成 .xcodeproj
 ├── WhisperVoice.xcodeproj             # xcodegen 產出（可不納管，靠 project.yml 重生）
 ├── ISSUES-xcode.md                    # 一口氣執行時記錄的待處理問題（見 §7）
@@ -302,7 +302,7 @@ approach-7-xcode/
 > - 從 Phase 0 連續做到 Phase 7，**不要中途停下來等驗證**。
 > - 每個 Phase 結束 **必須 `xcodebuild` build 過** 才進下一個（build 不過要當場修，這是硬門檻）。
 > - **「✅ 驗證」項目中凡是需要真人操作的**（授權麥克風/輔助使用、實機講話測試、貼上到別的 App、跨機分發）→
->   **不要停，寫進 `approach-7-xcode/ISSUES-xcode.md` 待辦清單**，全部 Phase 跑完後一次回報給使用者處理。
+>   **不要停，寫進 `voicekey/ISSUES-xcode.md` 待辦清單**，全部 Phase 跑完後一次回報給使用者處理。
 > - 能自動驗證的（單元測試、build、log 檢查）就當場做。
 > - 遇到「卡住、無法繞過」的技術問題（如某 API 行為不如預期）→ 一樣記進 ISSUES-xcode.md，**用降級/暫時 stub 跳過繼續**，不要卡死整條線。
 >
@@ -318,7 +318,7 @@ approach-7-xcode/
 > 建置工具鏈（已確認走此路）：完整 Xcode + **xcodegen**（`project.yml` 生成 `.xcodeproj`）+ `xcodebuild` headless build。
 
 **Phase 0 — 專案骨架（xcodegen + xcodebuild）**
-- 寫 `approach-7-xcode/project.yml`（xcodegen 宣告式設定：app target、macOS 13+、LSUIElement=YES、Info.plist、entitlements、Resources、bundleId `com.alston.WhisperVoice`）
+- 寫 `voicekey/project.yml`（xcodegen 宣告式設定：app target、macOS 13+、LSUIElement=YES、Info.plist、entitlements、Resources、bundleId `com.alston.WhisperVoice`）
 - 跑 `xcodegen generate` 產生 `WhisperVoice.xcodeproj`
 - AppDelegate 起一個 `NSStatusItem` 顯示 🎤；能結束程式
 - `xcodebuild -project WhisperVoice.xcodeproj -scheme WhisperVoice build` 必須過
@@ -356,7 +356,7 @@ approach-7-xcode/
 **Phase 7 — 簽章（ad-hoc）/ 文件**
 - **ad-hoc 簽章**（`codesign -s - --force --deep WhisperVoice.app`）— 自用，免帳號免憑證（2026-06-14 使用者指定）
 - Developer ID + notarization **標記為日後選配**（需 Apple Developer 付費帳號，目前無 → 記 ISSUES，不在本輪做）
-- approach-7-xcode/README.md：安裝、授權步驟、與 Python 差異、退場說明、（多機分發時各機首次右鍵開啟或 `xattr -dr com.apple.quarantine`）
+- voicekey/README.md：安裝、授權步驟、與 Python 差異、退場說明、（多機分發時各機首次右鍵開啟或 `xattr -dr com.apple.quarantine`）
 - ✅ 自動驗證：ad-hoc 簽章成功、`codesign -dv` 通過；（跨機分發、實機授權測試需真人 → 記 ISSUES）
 
 ---
@@ -382,7 +382,7 @@ approach-7-xcode/
 - Python 版（`approach-6-whisper-macos/`）整段**不動**，隨時可回去用
 - 兩版可同時 commit，git 歷史清楚
 - Xcode 版 `DerivedData/` 預設在 `~/Library/Developer/Xcode/DerivedData/`（不污染 repo）；若改放專案內須加 `.gitignore`
-- **退場**：Xcode 版若不滿意，刪整個 `approach-7-xcode/` 即可，Python 版零影響
+- **退場**：Xcode 版若不滿意，刪整個 `voicekey/` 即可，Python 版零影響
 - ⚠️ 兩版**不要同時執行**（會搶同一個全局熱鍵 + 同一支 session log DB）；測 Xcode 版前先結束 Python 版
 
 ---

@@ -4,8 +4,8 @@
 
 ## Mission
 語音轉文字工具（Grok STT + Cerebras LLM，macOS 主力）。
-**現役方案**：approach-6（`approach-6-whisper-macos/`）— rumps 選單列、四模式切換、multi-provider、macOS 26 相容。
-**原生版（實機跑通）**：approach-7（`approach-7-xcode/`）— 原生 Swift/AppKit 重寫版，Phase 0→7 全數完成、`xcodebuild` 通過、32 單元測試綠。**2026-06-14 實機驗證通過**：錄音→Grok STT→Cerebras LLM→拼音詞彙→自動貼上 全管線跑通（蕭淳云、加模 正確替換、CGEvent Cmd+V 貼上成功）。與 approach-6 **並排存活**，失敗可退回 Python。功能與 approach-6 對等（OpenCC 層省略）。實機除錯踩過的坑與解法見 `approach-7-xcode/GOTCHAS-xcode.md`；待真人/跨機項見 `approach-7-xcode/ISSUES-xcode.md`；設計與分階段計畫見 `planxcode060614.md`。
+**主力方案（遷移目標）**：VoiceKey（`voicekey/`，原 approach-7 / WhisperVoice，2026-07-11 改名）— 原生 Swift/AppKit 版，34 單元測試綠。**2026-06-14 實機驗證通過**：錄音→Grok STT→Cerebras LLM→拼音詞彙→自動貼上 全管線跑通。功能與 approach-6 對等（OpenCC 層省略）。bundle id `com.alston.VoiceKey`；舊 WhisperVoice 資料（App Support 詞彙檔、keychain、session DB）首次啟動自動遷移。實機除錯踩過的坑與解法見 `voicekey/GOTCHAS-xcode.md`；待真人/跨機項見 `voicekey/ISSUES-xcode.md`；設計與分階段計畫見 `planxcode060614.md`。
+**凍結方案（退路）**：approach-6（`approach-6-whisper-macos/`）— Python 版，rumps 選單列、四模式切換、multi-provider、macOS 26 相容。**2026-07-11 起凍結不再修改**；所有改善只做在 VoiceKey。VoiceKey 穩定使用一段時間後刪除本方案。
 **封存方案**：approach-3（`approach-3-python-exe/`）— Windows .exe，暫時封存，勿修改。
 **架構**：Grok STT（第一層）→ Cerebras LLM（第二層修正）→ 拼音詞彙（第三層精修）— 解決繁簡混用、字間空格、術語與人名辨識問題。
 
@@ -29,9 +29,9 @@
 | Progress | `docs/agent-progress.md` | Recent work, open TODOs, unresolved items. |
 | Gotchas | `docs/agent-gotchas.md` | Known bugs, macOS quirks, API limits, confirmed fixes. |
 | Code Index | `approach-6-whisper-macos/INDEX.md` | Module routing map — read before opening source files. |
-| Xcode Plan | `planxcode060614.md` | approach-7 原生 Swift 版架構與分階段實作計畫（新 session 開工必讀）。 |
-| Xcode 原生版 | `approach-7-xcode/README.md` + `ISSUES-xcode.md` | approach-7 安裝/授權/差異/退場；待真人/跨機項。 |
-| Xcode 踩坑 | `approach-7-xcode/GOTCHAS-xcode.md` | macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章避免掉授權、debug dylib crash 的確認解法。動到錄音/簽章/build 設定前必讀。 |
+| Xcode Plan | `planxcode060614.md` | VoiceKey（原 approach-7）架構與分階段實作計畫（新 session 開工必讀）。 |
+| Xcode 原生版 | `voicekey/README.md` + `ISSUES-xcode.md` | VoiceKey 安裝/授權/差異/退場；待真人/跨機項。 |
+| Xcode 踩坑 | `voicekey/GOTCHAS-xcode.md` | macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章避免掉授權、debug dylib crash 的確認解法。動到錄音/簽章/build 設定前必讀。 |
 | Refactor Report | `docs/agent-refactor-report.md` | Historical governance refactor record (archive). |
 
 ## Key Architecture Decisions
