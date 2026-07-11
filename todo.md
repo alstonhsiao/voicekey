@@ -1,51 +1,85 @@
 # TODO — voicekey 專案
 
+> 主力：**VoiceKey**（`voicekey/`）。approach-6 凍結；approach-3 封存。  
+> 詳細真人/跨機項見 `voicekey/ISSUES-xcode.md`；踩坑見 `voicekey/GOTCHAS-xcode.md`。
+
+---
+
+## 高優先（改名後一次性收尾）
+
+- [x] **安裝完整 Xcode**（本機 Xcode 26.6，`xcode-select` 已指向 Xcode.app）
+
+- [x] **VoiceKey 簽章憑證 + 本機安裝**（2026-07-12 本機完成）
+  - [x] `VoiceKey Self-Signed` 有效 identity（codesign Authority 已驗證）
+  - [x] `xcodegen` 2.45.4
+  - [x] Release 建置 → `/Applications/VoiceKey.app`（bundle `com.alston.VoiceKey` v0.1.0）
+  - [x] App Support：`env.local` + 三層詞彙種子；XAI / CEREBRAS key 就緒
+  - [x] 麥克風 + 輔助使用 + 熱鍵
+  - [ ] （選配）`config.local.json` 指定麥克風（目前系統預設可用）
+
+- [x] **端到端真人煙測**（2026-07-12 log 驗證）
+  - [x] Ctrl+F1 → 錄音 → Grok STT → Cerebras LLM → CGEvent 貼上（ok=true）
+  - [x] 簡體 STT `测试…` → LLM 修成 `測試測試123看看是不是很正常。`（STT 925ms / LLM 487ms）
+  - [ ] （選配）Ctrl+F10 / 選單切模式、詞彙熱重載再實機確認
+
+---
+
 ## 中優先
 
-- [ ] **approach-6 原生 HUD（PyObjC NSPanel）**
-  - 背景：tkinter 全系列（Tk 8.5 / Tk 9.0）在 macOS 26 Tahoe 不相容
-  - macOS 26 移除了 `[NSApplication macOSVersion]` selector，Tk 呼叫它導致 SIGABRT
-  - 解法：用 PyObjC (`pyobjc-framework-Cocoa` 已裝，pynput 依賴) 實作 NSPanel
-  - 設計重點：
-    - `class NativeHUD` 替換 `class HUD`
-    - NSPanel (floating, non-activating) 定位在右下角
-    - NSTextField 顯示模式名稱 + 狀態 emoji
-    - 點擊觸發 NSMenu 模式選單
-    - 右鍵 → 結束程式
-    - 所有 UI 更新透過 `dispatch_async(dispatch_get_main_queue(), ...)` 從背景執行緒發送
-  - 參考 API：
-    - `NSPanel.alloc().initWithContentRect_styleMask_backing_defer_(...)`
-    - `NSFloatingWindowLevel`
-    - `NSWindowStyleMaskBorderless`
-    - `AppKit.NSApp` 必須在主執行緒
-  - 前置條件：先完成 rumps 選單列修正（NSApplication 已在主執行緒）
+- [ ] **跨機部署到其他 Mac mini**（產物已備；待到目標機實裝）
+  - 分發：`voicekey/dist/VoiceKey-macOS-20260712.zip` / `.dmg`
+  - 步驟見 `voicekey/dist/INSTALL-zh-TW.md`
+  - 各機：右鍵開啟（未 notarize）；各自麥克風/輔助使用
+  - 各機 `config.local.json` 指定不同 `input_device`（麥克風名稱）
+  - 各機 `env.local`（API keys，不同步）
+
+- [x] **分發產物改名對齊 VoiceKey**（2026-07-12）
+  - INSTALL / make-distribution / dist INDEX 全數 VoiceKey + `com.alston.VoiceKey`
+  - 舊 `WhisperVoice-macOS-20260615.*` 已清；新產物 `VoiceKey-macOS-20260712.{zip,dmg}`
+  - `make-distribution.sh` 預設路徑對齊 `package.sh`（`VoiceKey-DD`）
+
+- [ ] **Grok STT 繁中 keyterm 實機累積**
+  - 單元/TTS 已驗證；真人錄音再累積人名、公司名準確率
+  - 必要時調 `vocab.stt_keyterm_limit` 或 LLM prompt
 
 ---
 
-## 低優先 / 探索
+## 低優先 / 選配
 
-- [ ] **OpenCC 後處理（繁簡轉換保底）**
-  - 背景：Grok STT 沒有 `prompt` 欄位，`language: zh-TW` 有效但不保證 100% 輸出繁體
-  - 解法：`pip install opencc-python-reimplemented`，辨識結果送入 `opencc.OpenCC('s2twp').convert(text)`
-  - 位置：`main.py` 辨識後、regex 後處理前（約 L883）
-  - 評估條件：若 `zh-TW` 語言碼測試後仍偶發簡體，則加入此項
-  - 參考：`s2twp` = 簡→繁（台灣詞彙標準），idempotent
+- [ ] **Apple Developer + notarization**
+  - 跨機免右鍵開啟、免清 quarantine；需付費帳號，非自用必要
 
-- [ ] **Groq Whisper 語速測試（繁中）**
-  - 已知 Groq 約 0.5s，但繁中辨識品質待評估
+- [ ] **OpenCC 保底（VoiceKey）**
+  - 目前省略；Cerebras prompt 要求繁體。若實機仍偶發簡體再加（Swift 可嵌 C 庫或呼叫外部）
 
-- [ ] **approach-7：完整 PyObjC app（無 Terminal 視窗）**
-  - 打包成 .app bundle，使用者體驗更好
+- [ ] **Groq Whisper 繁中品質/語速比較**
+  - 已知約 0.5s；品質待對拍 Grok
+
+- [ ] **系統音訊 / loopback 轉錄**
+  - 目前只錄麥克風；YouTube 等需 BlackHole 類虛擬裝置 + 裝置選擇 UI
+
+- [ ] **穩定一段時間後刪除 approach-6**
+  - 確認 VoiceKey 日常可替代後，整目錄移除（目前仍為退路）
 
 ---
 
-## 已完成
+## 取消 / 不再適用（approach-6 時代）
 
-- [x] approach-6 基礎架構（hotkey + Whisper API + paste）
-- [x] approach-6 Grok STT 整合（`/v1/stt` endpoint）
-- [x] approach-6 四模式切換（direct / zh2en / pro / casual）
-- [x] approach-6 Toggle 模式熱鍵（Ctrl+F1）
-- [x] approach-6 install.sh + install_manual.md
-- [x] macOS 26 崩潰根因分析（Tk 全系列不相容）
-- [x] approach-6 rumps 主執行緒重構（macOS 26 相容）
-- [x] approach-6 HUD 停用 + `_probe_tkinter` 強化偵測
+- [x] ~~approach-6 原生 HUD（PyObjC NSPanel）~~ → approach-6 凍結；VoiceKey 用選單列狀態，不重做 Tk HUD
+- [x] ~~approach-7：完整 PyObjC app~~ → 已用原生 Swift/AppKit（VoiceKey）取代
+- [x] ~~OpenCC 後處理（approach-6）~~ → Python 版已有；VoiceKey 刻意省略，見上「OpenCC 保底」
+- [x] ~~config.local.json 多機覆蓋（Python）~~ → VoiceKey 已實作 deep merge
+- [x] ~~Python vs Xcode 決策~~ → 已定：VoiceKey 主力，approach-6 凍結
+
+---
+
+## 已完成（摘要）
+
+- [x] approach-6 全管線（STT + Cerebras + 拼音詞彙 + 貼上 + rumps + macOS 26）
+- [x] VoiceKey Phase 0→7（Swift 原生版）+ 34 單元測試
+- [x] 實機驗證：錄音→Grok STT→Cerebras→拼音詞彙→自動貼上
+- [x] STT keyterm 動態合併 + 熱重載修正（user vocab 優先）
+- [x] 台灣口語數字 → 半形阿拉伯數字（LLM prompt）
+- [x] 改名 WhisperVoice → VoiceKey（目錄、bundle id、App Support 遷移）
+- [x] 分發 zip/dmg 腳本 + 產物對齊 VoiceKey 名稱
+- [x] 文件：`docs/archive/` 歸檔計畫；子目錄 `INDEX.md` 慣例

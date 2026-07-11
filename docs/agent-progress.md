@@ -2,6 +2,43 @@
 
 ## Recent Progress
 
+### 2026-07-12 — 分發產物對齊 VoiceKey + 跨機包重產（B 路徑）
+
+- **文件**：`voicekey/dist/INSTALL-zh-TW.md` 全面改寫（VoiceKey 命名、bundle id、env.local、`config.local.json` 多機麥克風、舊 WhisperVoice 遷移、Gatekeeper）。
+- **腳本**：`make-distribution.sh` 預設來源改為 `$VOICEKEY_DD/.../Release/VoiceKey.app`（與 `package.sh` 一致）；打包時清舊 `WhisperVoice-macOS-*`；產出後檢查可執行檔 + bundle id。
+- **索引**：`voicekey/INDEX.md` 分發段、`voicekey/dist/INDEX.md` 更新產製流程。
+- **驗證**：`./package.sh` → 簽章 `VoiceKey Self-Signed`、`codesign --verify` 通過；`./make-distribution.sh` 產出：
+  - `voicekey/dist/VoiceKey-macOS-20260712.zip`（~421KB，內含 VoiceKey.app + INSTALL + env.local.example）
+  - `voicekey/dist/VoiceKey-macOS-20260712.dmg`（~708KB，volname VoiceKey）
+  - bundle `com.alston.VoiceKey` v0.1.0；universal arm64+x86_64
+- **待使用者**：把 zip/dmg 拷到目標 Mac mini，依 INSTALL 完成授權與 env.local（本機無法代做跨機步驟）。
+
+### 2026-07-12 — VoiceKey 本機安裝 + 端到端煙測通過
+
+- **環境**：Xcode 26.6（17F113）；identity `VoiceKey Self-Signed`；`/Applications/VoiceKey.app` v0.1.0 build 1。
+- **建置備註**：iCloud 目錄下 `git rev-list` 會卡住 → `build.sh` / `package.sh` 已加 `perl alarm 5` 兜底。
+- **煙測（app.log 05:54）**：Ctrl+F1 錄 5.2s → raw STT「测试测试123…」→ LLM「測試測試123看看是不是很正常。」→ **已貼上（cgevent，ok=true）**；STT 925ms / LLM 487ms。麥克風 + 輔助使用均可用。
+- 錄音裝置：候選名稱不符時 fallback 系統預設（本機 MacBook Pro 麥克風），運作正常。
+
+### 2026-07-12 — 清理過時 handoff + 重寫 todo.md
+
+- 刪除根目錄 `Handoff20260614.md`（內容仍以 approach-6 為現役、WhisperVoice 命名、Python vs Xcode 未定，與現況完全不符；歷史細節已在 `docs/agent-progress.md` / `docs/archive/`）。
+- 重寫 `todo.md`：對齊 VoiceKey 主力；高優先＝改名後簽章/安裝/真人煙測；中優先＝跨機、dist 改名；取消 approach-6 時代 HUD / PyObjC / Python config.local 等項。
+
+### 2026-07-12 — 統一子資料夾索引為 INDEX.md
+
+- 慣例：僅根目錄保留 `README.md`；其餘資料夾以 `INDEX.md` 為路由索引（見 `AGENTS.md` Always-On Rules）。
+- `voicekey/README.md` → `voicekey/INDEX.md`；`docs/archive/README.md` → `docs/archive/INDEX.md`。
+- 新增：`docs/INDEX.md`、`scripts/INDEX.md`、`approach-3-python-exe/INDEX.md`、`voicekey/dist/INDEX.md`。
+- 更新引用：`AGENTS.md`、`README.md`、`docs/agent-context.md`、`docs/archive/` 內 plan 檔。
+
+### 2026-07-12 — 歸檔完工計畫文件
+
+- `plan20260614.md`、`planxcode060614.md` 移至 `docs/archive/`（頂部加歸檔狀態說明）。
+- 新增 `docs/archive/INDEX.md` 索引。
+- 更新引用：`AGENTS.md`、`README.md`、`voicekey/INDEX.md`、`docs/agent-context.md`、`docs/agent-progress.md`、`approach-6-whisper-macos/_voice_vocab.py`。
+- 新 session 開工改讀 `voicekey/INDEX.md` + `GOTCHAS-xcode.md`，不再指向根目錄 plan 檔。
+
 ### 2026-07-11 — 改名：approach-7 / WhisperVoice → VoiceKey
 
 - **範圍**：目錄 `approach-7-xcode/` → `voicekey/`（git mv，保留歷史）；target/module/scheme `WhisperVoice` → `VoiceKey`；bundle id → `com.alston.VoiceKey`；簽章 identity → `"VoiceKey Self-Signed"`（`setup-signing-cert.sh` 已同步，需重跑一次）；`WHISPERVOICE_DD` / `WHISPERVOICE_ENV_FILE` → `VOICEKEY_DD` / `VOICEKEY_ENV_FILE`（env file 舊名仍向下相容）。
@@ -91,7 +128,7 @@
 
 ### 2026-06-14 — voicekey：原生 Swift/AppKit 版（Phase 0→7 全數完成）
 
-**一口氣完成 planxcode060614.md 全部 7 個 Phase，每個 Phase `xcodebuild` 通過。**
+**一口氣完成 `docs/archive/planxcode060614.md` 全部 7 個 Phase，每個 Phase `xcodebuild` 通過。**
 
 #### 成果
 - 新建 `voicekey/`（與 approach-6 並排存活，OpenCC 層省略）。xcodegen（`project.yml`）+ `xcodebuild` headless build；ad-hoc 簽章。
@@ -112,7 +149,7 @@
 
 ### 2026-06-14 — 使用者自訂詞彙系統（第三層拼音 fuzzy 後處理）
 
-**完成 plan20260614.md 全部施工項目**
+**完成 `docs/archive/plan20260614.md` 全部施工項目**
 
 #### 背景
 - 人名/公司名可能超過 100 筆，塞不進 Grok keyterm（硬上限 10）與 LLM prompt（token 暴增）。

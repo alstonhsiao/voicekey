@@ -9,7 +9,8 @@ DD="${VOICEKEY_DD:-$HOME/Library/Developer/VoiceKey-DD}"
 APP="$DD/Build/Products/Release/VoiceKey.app"
 
 # build 號 = git commit 數，讓每個 build 可對回 commit（選單「關於」會顯示）。
-BUILD_NUM="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+# 注意：專案若在 iCloud 同步目錄，git 可能無限卡住，故用 timeout 兜底。
+BUILD_NUM="$(perl -e 'alarm 5; exec @ARGV' git rev-list --count HEAD 2>/dev/null || echo 1)"
 
 echo "▶︎ Generating project + Release build… (build $BUILD_NUM)"
 xcodegen generate
@@ -31,5 +32,5 @@ codesign --verify --deep --strict "$APP" && echo "✅ 簽章驗證通過"
 
 echo ""
 echo "✅ App: $APP"
-echo "   分發到其他 Mac 後，首次右鍵 → 開啟，或："
-echo "   xattr -dr com.apple.quarantine /Applications/VoiceKey.app"
+echo "   打 zip/dmg：./make-distribution.sh"
+echo "   跨機首次：右鍵 → 開啟，或 xattr -dr com.apple.quarantine /Applications/VoiceKey.app"

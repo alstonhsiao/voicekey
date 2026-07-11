@@ -11,7 +11,8 @@ CONFIG="${1:-Debug}"
 DD="${VOICEKEY_DD:-$HOME/Library/Developer/VoiceKey-DD}"
 
 # build 號 = git commit 數，讓每個 build 可對回 commit（選單「關於」會顯示）。
-BUILD_NUM="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+# 注意：專案若在 iCloud 同步目錄，git 可能無限卡住，故用 timeout 兜底。
+BUILD_NUM="$(perl -e 'alarm 5; exec @ARGV' git rev-list --count HEAD 2>/dev/null || echo 1)"
 
 xcodegen generate
 xcodebuild -project VoiceKey.xcodeproj \

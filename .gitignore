@@ -9,10 +9,21 @@ __pycache__/
 *.pyo
 .venv/
 venv/
-dist/
-build/
 *.egg-info/
 *.spec
+
+# 通用 build 中間產物（勿用裸 dist/：會誤傷 voicekey/dist 說明文件）
+build/
+
+# 二進位分發產物（說明文件要進 git）
+approach-3-python-exe/dist/
+approach-3-python-exe/build/
+voicekey/dist/*.zip
+voicekey/dist/*.dmg
+voicekey/dist/_dmg/
+voicekey/dist/VoiceKey-macOS-*/
+voicekey/dist/WhisperVoice-macOS-*/
+voicekey/dist/**/*.app/
 
 # macOS
 .DS_Store
@@ -26,9 +37,3 @@ build/
 
 # TTS 測試產生的音檔
 generated-audio/
-
-# 方案三打包產物（已被上方 dist/ build/ .venv/ *.spec 全域排除，此處為說明）
-# approach-3-python-exe/dist/     ← WhisperVoiceTyping.exe 在此，體積 ~30MB
-# approach-3-python-exe/build/    ← PyInstaller 中間產物
-# approach-3-python-exe/.venv/    ← 虛擬環境
-# approach-3-python-exe/*.spec    ← PyInstaller 設定檔

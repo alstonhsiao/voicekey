@@ -1,9 +1,17 @@
-# VoiceKey — Xcode 原生版（原 approach-7 / WhisperVoice，2026-07-11 改名）
+# voicekey — VoiceKey Index（原 approach-7 / WhisperVoice，2026-07-11 改名）
 
-> 現役 Python 方案（`approach-6-whisper-macos/`）的原生 Swift / AppKit 重寫版。
-> 與 Python 版**並排存活**：不滿意刪掉整個 `voicekey/` 即可，Python 版零影響。
->
-> 架構與分階段計畫見專案根目錄 `planxcode060614.md`；治理見 `AGENTS.md`。
+> 凍結 Python 退路（`approach-6-whisper-macos/`）的原生 Swift / AppKit 重寫版，現為**主力方案**。
+> 歷史施工藍圖見 `docs/archive/planxcode060614.md`；治理見 `AGENTS.md`。
+
+## 本目錄文件
+
+| 檔案 | 用途 |
+|---|---|
+| `INDEX.md`（本檔） | 建置、安裝、使用、設定 |
+| `GOTCHAS-xcode.md` | 錄音/簽章/build 踩坑與確認解法 |
+| `ISSUES-xcode.md` | 待真人/跨機驗證項 |
+| `dist/INDEX.md` | 分發產物（zip/dmg/安裝說明） |
+| `build.sh` / `test.sh` / `package.sh` | 建置、測試、打包腳本 |
 
 ## 這是什麼
 
@@ -101,15 +109,26 @@ cd voicekey
   - `user_vocab.json`：拼音 fuzzy 替換（people/companies/projects/terms + overrides）
     - 例：「蕭純云」自動修成「蕭淳云」（無聲調全拼音 + 同字數比對）
 
-## 分發到其他 Mac（ad-hoc）
+## 分發到其他 Mac
 
-本版走 **ad-hoc 簽章**（免 Apple 付費帳號）。在別台 Mac 首次開啟：
+```bash
+./package.sh && ./make-distribution.sh
+# 產物：dist/VoiceKey-macOS-YYYYMMDD.zip 與 .dmg
+```
+
+本版為 **self-signed**（本機 rebuild 不掉輔助使用授權），**未 notarize**（免付費帳號）。  
+在別台 Mac 首次開啟：
 
 - 右鍵 →「開啟」→ 確認；或
 - `xattr -dr com.apple.quarantine /Applications/VoiceKey.app`
 
-每台 Mac 需**各自**在「系統設定 → 隱私權與安全性」勾選 **麥克風** 與 **輔助使用**。
-（Developer ID + notarization 可免上述步驟，但需付費帳號 → 日後選配。）
+每台 Mac 需**各自**：
+
+1. 麥克風 + 輔助使用授權  
+2. `~/Library/Application Support/VoiceKey/env.local`（API keys，不同步）  
+3. （選配）`config.local.json` 指定 `recording.input_device`  
+
+詳見 `dist/INSTALL-zh-TW.md`。Developer ID + notarization → 日後選配。
 
 ## 退場 / 並排存活
 

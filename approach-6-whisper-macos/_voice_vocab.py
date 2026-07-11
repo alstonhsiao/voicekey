@@ -1,6 +1,6 @@
 """第三層後處理：使用者自訂詞彙的拼音 fuzzy 替換引擎。
 
-設計重點（見 plan20260614.md §3.3）：
+設計重點（見 docs/archive/plan20260614.md §3.3）：
 - 在 LLM 修正、OpenCC 繁化之後、貼上之前執行。
 - 不呼叫任何 API、不耗 token、詞彙數量無上限。
 - 對 people / companies / projects 用「無聲調全拼音 + 同字數」比對中文人名/公司名。

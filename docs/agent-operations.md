@@ -9,8 +9,9 @@
 
 ## Execution Order
 - Step 1: Read `AGENTS.md` and the quick map first.
-- Step 2: Open only the module/index files relevant to the requested task.
-- Step 3: Implement minimal safe changes, then validate with the project's native checks.
+- Step 2: For directory work, read that folder's `INDEX.md` first (root `README.md` only applies at project root).
+- Step 3: Open only the module/index files relevant to the requested task.
+- Step 4: Implement minimal safe changes, then validate with the project's native checks.
 
 ## Validation Baseline
 - Confirm no secrets are exposed in code, logs, or commits.

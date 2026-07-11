@@ -2,27 +2,36 @@
 
 ## Project Purpose
 語音轉文字工具（Grok STT / OpenAI / Groq + Cerebras LLM，macOS 主力）。
-approach-6 是唯一現役方案（macOS 26 相容）。approach-3 已封存（Windows，勿修改）。
+**VoiceKey**（`voicekey/`）為主力方案；approach-6 已凍結作退路；approach-3 已封存（Windows，勿修改）。
 
-## Runtime Profile
-- Primary language: Python 3
-- Virtual env: `approach-6-whisper-macos/.venv/`
-- Config: `approach-6-whisper-macos/config.json`（schema 驗證：`_voice_config.validate_config()`）
-- Secrets: `env.local`（project root，git-ignored，chmod 600）
-- Log: `~/Library/Logs/WhisperVoice/app.log`
+## Runtime Profile（VoiceKey）
+- Primary language: Swift 5.9+（AppKit menu bar agent）
+- Build: xcodegen + xcodebuild（見 `voicekey/build.sh`）
+- Config: bundle `config.json` + `~/Library/Application Support/VoiceKey/config.local.json`
+- Secrets: `~/Library/Application Support/VoiceKey/env.local` 或 Keychain
+- Log: `~/Library/Logs/VoiceKey/app.log`
+- Session DB: `~/.voicekey_log.db`
 
 ## Key Paths
 | Path | Purpose |
 |------|---------|
-| `approach-6-whisper-macos/` | 唯一現役方案 |
-| `approach-6-whisper-macos/INDEX.md` | 模組路由文件（讀此再鑽入程式碼） |
-| `approach-3-python-exe/` | 封存方案（Windows，勿修改） |
-| `env.local` | API keys（OPENAI / GROK / GROQ / CEREBRAS），git-ignored |
+| `voicekey/` | 主力方案（VoiceKey 原生 App） |
+| `voicekey/INDEX.md` | 建置、簽章、安裝（新 session 開工必讀） |
+| `docs/INDEX.md` | Agent 文件路由索引 |
+| `voicekey/GOTCHAS-xcode.md` | 錄音/簽章/選單列踩坑 |
+| `voicekey/ISSUES-xcode.md` | 待真人/跨機項 |
+| `approach-6-whisper-macos/` | 凍結退路（Python，勿再修改） |
+| `approach-6-whisper-macos/INDEX.md` | Python 版模組路由（僅查退路時讀） |
+| `approach-3-python-exe/INDEX.md` | 封存方案（Windows）模組索引 |
+| `scripts/INDEX.md` | 開發驗證腳本索引 |
+| `docs/archive/INDEX.md` | 已完工歷史施工藍圖索引 |
+| `env.local` | 開發用 API keys（project root，git-ignored） |
 | `scripts/test_api_key.py` | 驗證 OpenAI / Grok / Groq 連線 |
 | `scripts/test_cerebras.py` | 驗證 Cerebras 連線 |
-| `todo.md` | 中/低優先未完成項目（NativeHUD、approach-7 等） |
+| `todo.md` | 中/低優先未完成項目 |
 
 ## Scope Boundaries
-- Prefer changes inside this project only.
+- Prefer changes inside `voicekey/` unless explicitly working on frozen/archived approaches.
+- approach-6 is frozen; do not modify unless explicitly requested.
 - approach-3 is archived; do not modify unless explicitly requested.
 - Use `INDEX.md` before reading raw source files in approach-6.

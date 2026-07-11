@@ -1,305 +1,165 @@
-# 語音轉文字工具 (Voice Typing)
+# VoiceKey — 語音轉文字
 
 > **按熱鍵 → 錄音 → API 辨識 → 自動貼上文字到游標位置**
 
 三層架構：**Grok STT（第一層）→ Cerebras LLM 修正（第二層）→ 拼音詞彙精修（第三層）**，解決繁簡混用、標點遺漏、人名術語辨識問題。
 
+> 文件索引：僅本檔（根目錄）使用 `README.md`；各子資料夾以 `INDEX.md` 為入口（見 [docs/INDEX.md](docs/INDEX.md)）。  
+> Agent 開工先讀 [AGENTS.md](AGENTS.md)。
+
 ---
 
-## 方案說明
+## 方案一覽
 
 | 方案 | 平台 | 狀態 | 說明 |
 |---|---|---|---|
-| **voicekey（VoiceKey）** | macOS | ✅ **主力（遷移目標）** | 原生 Swift/AppKit 版（原 approach-7 / WhisperVoice，2026-07-11 改名）。實機跑通錄音→STT→LLM→詞彙→自動貼上全管線，34 單元測試綠。功能與 approach-6 對等（省略 OpenCC）。見 [voicekey/README.md](voicekey/README.md)、[GOTCHAS-xcode.md](voicekey/GOTCHAS-xcode.md)、[planxcode060614.md](planxcode060614.md) |
-| **approach-6-whisper-macos** | macOS | 🧊 **凍結（退路）** | Python 版：Grok STT + Cerebras LLM + 拼音詞彙第三層，rumps 選單列。2026-07-11 起凍結不再修改，作為 VoiceKey 的退路；VoiceKey 穩定使用一段時間後刪除 |
-| **approach-3-python-exe** | Windows | 🗄️ 封存（有空再維護）| Python 打包 .exe，OpenAI Whisper，供同事雙擊使用 |
-
-> **已刪除**（2026-06-12）：approach-1（Python+uv）、approach-2（AHK+MCI）、approach-4（Gemini Windows）、approach-5（Gemini macOS）。刪除原因：approach-2 有 Critical 安全問題；approach-4/5 依賴 gemini-1.5-flash（已退役，API 回 404）；approach-1 功能被 approach-3 取代。
+| **VoiceKey**（`voicekey/`） | macOS | ✅ **主力** | 原生 Swift/AppKit。本機實機跑通全管線；34 單元測試。見 [voicekey/INDEX.md](voicekey/INDEX.md) |
+| **approach-6-whisper-macos** | macOS | 🧊 **凍結退路** | Python + rumps。2026-07-11 起不再修改 |
+| **approach-3-python-exe** | Windows | 🗄️ **封存** | .exe 打包方案，勿改除非明確需求 |
 
 ---
 
-## 目錄
+## 快速開始（VoiceKey，本機開發機）
 
-- [approach-6：macOS 主力方案（現役）](#approach-6macos-主力方案現役)
-- [approach-3：Windows 封存方案](#approach-3windows-封存方案)
-- [測試 API Key](#測試-api-key)
-- [設定說明](#設定說明)
-- [技術細節](#技術細節)
+### 需求
 
----
+- 完整 Xcode（非僅 Command Line Tools）
+- `xcodegen`：`brew install xcodegen`
+- API keys：`XAI_API_KEY`（Grok STT）、`CEREBRAS_API_KEY`（LLM 修正）
 
-## approach-6：macOS 主力方案（現役）
-
-### 功能一覽
-
-| 功能 | 說明 |
-|---|---|
-| 🎤 **rumps 選單列** | 右上角圖示顯示狀態（⏸ / 🔴 / 🔄 / ⚠️），點選可切換模式或結束 |
-| 📝 **四種模式** | 直接轉錄 / 中翻英 / 專業模式 / 一般對話 |
-| 🔀 **Ctrl+F1 切換錄音** | 按一下開始，再按一下停止辨識貼上 |
-| ⚡ **Grok STT** | 平均 ~1.0s，延遲穩定 |
-| 🧠 **Cerebras LLM 修正** | ~170ms，修正繁簡混用 / 字間空格 / 標點 / 術語人名 |
-| 📖 **拼音詞彙第三層** | `user_vocab.json` 維護人名/公司名，無聲調拼音 fuzzy 比對（`蕭純云`→`蕭淳云`），詞彙數量無上限，改檔不必重啟 |
-| 🗂 **管理詞彙選單** | 選單列「管理詞彙」可直接用 VSCode / 預設 App / Finder 開啟詞彙檔 |
-| 🔌 **Provider 切換** | config.json 一行切換 grok / openai / groq |
-| 🖥️ **macOS 26 相容** | rumps 主執行緒；pynput 貼上由 GCD 主執行緒執行（修正 TSM 崩潰）|
-| 📊 **Session log** | 每次辨識寫入 `~/.whisper_voice_log.db`（STT、LLM、貼上結果）|
-
-### 安裝
-
-**最快方式（自動安裝腳本）：**
-```bash
-cd approach-6-whisper-macos
-bash install.sh
-```
-腳本會檢查 Python 版本、建立 venv、安裝套件、互動式設定 API Key，最後產生「啟動語音輸入.command」捷徑。
-
-**手動安裝：** 見 [approach-6-whisper-macos/install_manual.md](approach-6-whisper-macos/install_manual.md)
-
-### API Key 設定
-
-編輯專案根目錄的 `env.local`：
-```
-# STT provider（擇一）
-XAI_API_KEY=xai-你的Key       ← 推薦（Grok STT，最快）
-OPENAI_API_KEY=sk-你的Key     ← 備用（OpenAI Whisper）
-GROQ_API_KEY=gsk_你的Key      ← 備用（免費額度較多）
-
-# LLM 修正層
-CEREBRAS_API_KEY=csk-你的Key  ← 免費方案每天 1M tokens
-```
-
-> `env.local` 已列入 `.gitignore`，不會推送到 GitHub。請確認檔案權限為 `chmod 600 env.local`。
-
-確認 `config.json` 的 `api.provider` 對應你填的 STT Key：
-```json
-"api": { "provider": "grok" }    ← 對應 XAI_API_KEY
-"api": { "provider": "openai" }  ← 對應 OPENAI_API_KEY
-"api": { "provider": "groq" }    ← 對應 GROQ_API_KEY
-```
-
-### 日常操作
-
-| 動作 | 說明 |
-|---|---|
-| 按 **Ctrl+F1**（第一下）| 開始錄音（等 beep 聲才說話）|
-| 按 **Ctrl+F1**（第二下）| 停止錄音 → 辨識 → 貼到游標位置 |
-| 按 **Ctrl+F10** | 切換辨識模式（循環）|
-| 點選單列 **🎤 圖示** | 展開模式選單，直接選目標模式 |
-| 選單列 **❌ 結束程式** | 結束程式 |
-
-### macOS 權限設定（首次）
-
-程式啟動後，三項都要允許：
-
-| 授權 | 用途 | 少了會怎樣 |
-|---|---|---|
-| 麥克風 | 錄音 | 無法錄音 |
-| **輔助使用 (Accessibility)** | **osascript 發送 Cmd+V 貼上** | **辨識成功但文字不貼上** ⚠️ |
-| 輸入監控 (Input Monitoring) | 偵測 Ctrl+F1 / F10 | 熱鍵無反應 |
-
-> 授權後需**重新啟動程式**才會生效。
-> 位置：系統設定 → 隱私權與安全性 → 輔助使用 / 輸入監控，確認 Terminal 已打勾。
-
-### 辨識模式
-
-| 模式 ID | 顯示名 | 行為 |
-|---|---|---|
-| `direct` | 📝 直接轉錄 | 繁體中文忠實輸出（`zh-TW`），含個人術語 |
-| `zh2en` | 🌐 中翻英 | 說中文，輸出英文 |
-| `pro` | 💼 專業模式 | 技術術語（API, Docker, n8n 等）保留英文 |
-| `casual` | 💬 一般對話 | 口語化輸出，不加句點 |
-
-### 新增術語 / 人名
-
-**推薦方式：編輯 `user_vocab.json`**（改完存檔即生效，不必重啟）
-
-```json
-{
-  "people":    ["蕭淳云", "周芷萓"],
-  "companies": ["加模"],
-  "projects":  ["Tahoe"],
-  "terms":     ["n8n", "Zeabur", "Slack"],
-  "overrides": { "家模": "加模" }
-}
-```
-
-- `people / companies / projects`：中文人名/公司名，進入**拼音 fuzzy 比對**（字音相同就替換）
-- `terms`：英文/數字術語，僅供 STT keyterms hint，不進拼音引擎
-- `overrides`：字面強制替換，優先於拼音比對（固定已知錯法）
-
-選單列「🗂 管理詞彙 → 用 VSCode 開啟」可快速開檔。
-
-**進階：直接調 config.json**（重啟生效）
-- `grok_keyterms`：STT 層詞彙 hint（≤10 個，每個 ≤50 字元）
-- `llm_prompt`：LLM 層完整指令
-
-> 若 `vocab.enabled` 設為 `false`，第三層停用，行為回到上版。
-
----
-
-## approach-3：Windows 封存方案
-
-> 🗄️ **封存狀態** — 目前可用，但有已知問題待修，有需要時再繼續維護。
-
-### 已知問題（修之前不要直接發給同事）
-
-- **build.bat** 的 `--add-data config.json` 會把設定（可能含 key）打包進 exe，需移除
-- **requirements.txt** 未鎖版本（全 `>=`），打包結果不可重現
-- 錄音暫存 WAV 使用固定路徑且用後不刪除
-
-### 快速使用（原始碼方式）
-
-```batch
-cd approach-3-python-exe
-pip install -r requirements.txt
-python main.py
-```
-
-編輯 `config.json` 填入 `openai_api_key`（或在 `env.local` 設 `OPENAI_API_KEY`）。
-
-### 打包成 .exe（在 Windows 上執行）
-
-```batch
-pip install pyinstaller
-build.bat
-```
-產物在 `dist\WhisperVoiceTyping.exe`，連同 `config.json` 一起傳給同事。
-
-> ⚠️ 打包前先確認 `config.json` 的 key 欄位為空（`YOUR_KEY_HERE`），避免金鑰打包進 exe。
-> PyInstaller 只能在目標平台打包，macOS 上無法產生 Windows .exe。
-
----
-
-## 測試 API Key
+### 首次：簽章憑證（每台開發機一次）
 
 ```bash
-# OpenAI / xAI / Groq
-python scripts/test_api_key.py
+cd voicekey
+bash setup-signing-cert.sh   # 建立 "VoiceKey Self-Signed"
+```
 
-# Cerebras
-python scripts/test_cerebras.py
+固定 identity 後，rebuild **不會**每次掉「輔助使用」授權（ad-hoc 會掉）。詳見 [GOTCHAS-xcode.md](voicekey/GOTCHAS-xcode.md)。
+
+### 建置 / 測試 / 安裝
+
+```bash
+cd voicekey
+./test.sh       # 單元測試
+./package.sh    # Release + self-signed → ~/Library/Developer/VoiceKey-DD/.../VoiceKey.app
+# 拖進 /Applications，或 ditto 覆蓋
+```
+
+### API Key（本機）
+
+```bash
+mkdir -p "$HOME/Library/Application Support/VoiceKey"
+# 編輯 env.local（chmod 600），至少：
+# XAI_API_KEY=...
+# CEREBRAS_API_KEY=...
+```
+
+Key 讀取順序：環境變數 → App Support `env.local` → Keychain → bundle `config.json`。  
+**絕不**把 key 提交 git 或打包進 `.app`。
+
+### 使用
+
+| 操作 | 說明 |
+|---|---|
+| **Ctrl+F1** | 開始 / 停止錄音 → 辨識 → 貼上 |
+| **Ctrl+F10** | 循環切換模式 |
+| 選單列 🎤 | 模式、詞彙檔、關於、結束 |
+
+首次需允許：**麥克風**、**輔助使用**（不需「輸入監控」）。
+
+### 詞彙與本機覆蓋
+
+| 路徑（皆在 `~/Library/Application Support/VoiceKey/`） | 用途 |
+|---|---|
+| `user_vocab.json` 等 | 三層詞彙；首次啟動由 bundle 種子；存檔即熱重載 |
+| `config.local.json` | 本機 deep merge（例如 `recording.input_device`）|
+
+---
+
+## 跨機部署（其他 Mac，無需 Xcode）
+
+1. 在開發機產出分發包：
+
+```bash
+cd voicekey
+./package.sh && ./make-distribution.sh
+# → voicekey/dist/VoiceKey-macOS-YYYYMMDD.zip 與 .dmg
+```
+
+2. 把 zip/dmg 拷到目標機（AirDrop / USB / 內網）。  
+   二進位產物**預設不進 git**（體積與簽章為本機產物）；安裝說明在 repo：  
+   [voicekey/dist/INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md)
+
+3. 目標機：拖 `VoiceKey.app` → `/Applications` → **右鍵「開啟」**（未 notarize，Gatekeeper 提示屬正常）→ 設定各機 `env.local` 與權限。
+
+也可請目標機上的 AI agent 依下方「跨機部署 prompt」執行（需你先提供 zip/dmg 路徑與 API keys）。
+
+---
+
+## 辨識模式
+
+| ID | 顯示 | 行為 |
+|---|---|---|
+| `direct` | 直接轉錄 | 繁中忠實輸出 |
+| `zh2en` | 中翻英 | 說中文，輸出英文 |
+| `pro` | 專業模式 | 技術術語保留英文 |
+| `casual` | 一般對話 | 口語化 |
+
+---
+
+## approach-6（凍結退路）
+
+僅在 VoiceKey 不可用時使用。安裝見 [approach-6-whisper-macos/INDEX.md](approach-6-whisper-macos/INDEX.md) 與 `install.sh`。  
+**勿與 VoiceKey 同時執行**（搶熱鍵與 log）。
+
+---
+
+## approach-3（Windows 封存）
+
+見 [approach-3-python-exe/INDEX.md](approach-3-python-exe/INDEX.md)。打包前確認 config 內無真實 API key。
+
+---
+
+## 測試 API Key（開發用）
+
+```bash
+python scripts/test_api_key.py    # OpenAI / xAI / Groq
+python scripts/test_cerebras.py   # Cerebras
 ```
 
 ---
 
-## 設定說明
+## 技術摘要（VoiceKey）
 
-### API Key 優先順序
-
-1. 系統環境變數（`OPENAI_API_KEY` 等，最優先）
-2. `env.local` / `.env.local`
-3. `config.json` 的 `api_key` 欄位
-
-### approach-6 config.json 主要欄位
-
-```jsonc
-{
-  "api": {
-    "provider": "grok",           // grok | openai | groq
-    "grok": { "api_key": "" },    // 或由 env.local 覆蓋
-    "llm_correction": {
-      "provider": "cerebras",
-      "cerebras": { "model": "gpt-oss-120b", "max_tokens": 2048 }
-    }
-  },
-  "hotkey": {
-    "record_key": "F1",
-    "record_modifier": "ctrl",    // ctrl | shift | "" (空=無修飾鍵)
-    "mode_cycle_key": "F10"
-  },
-  "vocab": {
-    "enabled": true,
-    "file": "user_vocab.json",    // 詞彙檔路徑（相對於程式目錄）
-    "stt_keyterm_limit": 10,      // 從 vocab 取幾個詞餵給 STT keyterm
-    "match": {
-      "use_tone": false,          // false=無聲調比對（較寬鬆，推薦）
-      "require_surname_char_same": false,
-      "min_term_len": 2           // 單字詞不進拼音比對
-    }
-  },
-  "modes": [ ... ],               // 見 config.json 各 mode 設定
-  "ui": { "hud_enabled": false }  // macOS 26 上保持 false
-}
+```
+Ctrl+F1
+  → Carbon 熱鍵 → AVAudioEngine 錄音（16k mono PCM16）
+  → Grok STT（keyterm hint）
+  → Cerebras LLM 修正（失敗則用 raw STT）
+  → 拼音詞彙 fuzzy（user_vocab.json）
+  → NSPasteboard + CGEvent Cmd+V
+  → SQLite session log（~/.voicekey_log.db）
 ```
 
-### 錄音規格（approach-6）
-
-| 參數 | 值 |
+| 項目 | 說明 |
 |---|---|
-| 取樣率 | 16000 Hz |
-| 聲道 | 1（Mono）|
-| 位元深度 | 16-bit PCM |
-| 格式 | WAV（辨識後刪除）|
+| 簽章 | self-signed `VoiceKey Self-Signed`；未 notarize |
+| DerivedData | `~/Library/Developer/VoiceKey-DD`（避開 iCloud 專案目錄） |
+| Log | `~/Library/Logs/VoiceKey/app.log` |
+| Bundle id | `com.alston.VoiceKey` |
 
 ---
 
-## 技術細節
-
-### 資料流（approach-6）
-
-```
-Ctrl+F1（第一下）
-  → pynput 偵測按鍵
-  → 背景執行緒錄音（sounddevice，記憶體 buffer）
-  → 等 buffer > 4000 samples → beep 提示
-
-Ctrl+F1（第二下）
-  → 抓取前景 App 名稱
-  → 停止錄音 → 寫 NamedTemp WAV
-  → Grok STT API（~1.0s）
-  → regex 修正（fallback 兜底）
-  → Cerebras LLM 修正（~170ms，可選）
-  → OpenCC 繁化兜底（偵測到簡體才轉）
-  → 拼音詞彙精修（user_vocab.json，無 API 呼叫，毫秒級）
-  → pyperclip 寫剪貼簿 + osascript Cmd+V 貼上
-    fallback → pynput（GCD 主執行緒）
-  → SQLite session log
-```
-
-### macOS 26 相容修法
-
-| 問題 | 修法 |
-|---|---|
-| rumps / AppKit 必須主執行緒 | `build_menubar_app()` 回傳 app，`main()` 主執行緒呼叫 `.run()`；listener 改 `.start()` 非阻塞 |
-| Tk 全系列 SIGABRT | `_probe_tkinter()` 子程序探測；`hud_enabled: false` |
-| pynput TSM 執行緒斷言 SIGTRAP | `_run_on_main_thread()` 透過 `libdispatch.dispatch_async_f` 排程到 GCD 主執行緒 |
-
-### 錯誤處理
-
-| 狀況 | 處理 |
-|---|---|
-| API Key 未設定 | 啟動時 RuntimeError，印出明確提示後退出 |
-| 錄音 < 0.5 秒 | 忽略，不呼叫 API |
-| HTTP 401 | 提示「API Key 無效」|
-| HTTP 429 | 提示「請求過於頻繁」|
-| 網路逾時（>30s）| 提示「網路逾時」|
-| Cerebras 失敗 | 降級：直接貼原始 STT 文字（不中斷）|
-| 詞彙層失敗 / 停用 | 降級：貼 OpenCC 輸出原文（不中斷）|
-| user_vocab.json 格式錯誤 | 保留上一次成功版本繼續運作，log 警告 |
-| osascript 貼上失敗 | fallback → pynput（GCD）→ 剪貼簿（手動 Cmd+V）|
-
-### 費用參考
-
-| Provider | 費用 |
-|---|---|
-| Grok STT（xAI）| 依官方定價（[console.x.ai](https://console.x.ai/)）|
-| OpenAI Whisper | $0.006 USD / 分鐘 |
-| Groq Whisper | 免費額度較多 |
-| Cerebras LLM | 免費方案每天 1M tokens |
-
----
-
-## 開發者 / AI Agent 文件
+## 開發者 / AI Agent
 
 | 文件 | 用途 |
 |---|---|
-| [AGENTS.md](AGENTS.md) | Governance hub — 每個 session 先讀 |
-| [docs/agent-context.md](docs/agent-context.md) | 專案堆疊、路徑、scope |
-| [docs/agent-operations.md](docs/agent-operations.md) | 不可妥協規則、驗證基線 |
-| [docs/agent-gotchas.md](docs/agent-gotchas.md) | macOS 已知問題、API 限制與修法 |
-| [docs/agent-progress.md](docs/agent-progress.md) | 近期進度、Open TODOs |
-| [approach-6-whisper-macos/INDEX.md](approach-6-whisper-macos/INDEX.md) | approach-6 模組路由文件 |
+| [AGENTS.md](AGENTS.md) | Governance — 每個 session 先讀 |
+| [docs/INDEX.md](docs/INDEX.md) | Agent 文件路由 |
+| [docs/agent-progress.md](docs/agent-progress.md) | 近期進度 |
+| [todo.md](todo.md) | 待辦 |
+| [voicekey/INDEX.md](voicekey/INDEX.md) | VoiceKey 建置與安裝 |
+| [voicekey/GOTCHAS-xcode.md](voicekey/GOTCHAS-xcode.md) | 實機踩坑 |
 
 ---
 

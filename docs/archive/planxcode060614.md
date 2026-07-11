@@ -1,5 +1,7 @@
 # Plan — WhisperVoice Xcode 原生版（voicekey）
 
+> **歸檔狀態（2026-07-12）**：已完工（2026-06-14，Phase 0–7 全數完成）。現役見 `voicekey/INDEX.md` + `GOTCHAS-xcode.md`；approach-6 已凍結。本檔僅供歷史參考。
+>
 > 建立日期：2026-06-14
 > 目標：把現役 Python 方案（approach-6）重寫為原生 Swift / AppKit macOS App，
 > 與 Python 版**並排存活**（side-by-side），失敗可隨時退回 Python。
@@ -118,7 +120,7 @@ voicekey/
 │   ├── ConfigMergeTests.swift         # config.local.json deep merge
 │   └── ProviderTests.swift            # multipart 組裝、降級行為（mock URLSession）
 │
-└── README.md                          # 安裝、簽章、授權、與 Python 版差異
+└── INDEX.md                           # 安裝、簽章、授權、與 Python 版差異
 ```
 
 ---
@@ -356,7 +358,7 @@ voicekey/
 **Phase 7 — 簽章（ad-hoc）/ 文件**
 - **ad-hoc 簽章**（`codesign -s - --force --deep WhisperVoice.app`）— 自用，免帳號免憑證（2026-06-14 使用者指定）
 - Developer ID + notarization **標記為日後選配**（需 Apple Developer 付費帳號，目前無 → 記 ISSUES，不在本輪做）
-- voicekey/README.md：安裝、授權步驟、與 Python 差異、退場說明、（多機分發時各機首次右鍵開啟或 `xattr -dr com.apple.quarantine`）
+- voicekey/INDEX.md：安裝、授權步驟、與 Python 差異、退場說明、（多機分發時各機首次右鍵開啟或 `xattr -dr com.apple.quarantine`）
 - ✅ 自動驗證：ad-hoc 簽章成功、`codesign -dv` 通過；（跨機分發、實機授權測試需真人 → 記 ISSUES）
 
 ---
