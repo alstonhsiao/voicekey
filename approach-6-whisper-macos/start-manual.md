@@ -7,7 +7,7 @@
 在 Keyboard Maestro 加一個 **Execute Shell Script** action，內容填：
 
 ```bash
-cd /Users/alstonmacminim4home/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos
+cd /Users/alstonmacminim4home/Documents/AntiGravity/voicekey/approach-6-whisper-macos
 
 # 清除殘留 PID
 PID_FILE="$HOME/Library/Application Support/WhisperVoice/WhisperVoice.pid"
@@ -33,7 +33,7 @@ Log 輸出位置：`~/Library/Logs/WhisperVoice/app.log`
 在 Keyboard Maestro 加一個 **Open a File, Folder or Application** action，選擇：
 
 ```
-/Users/alstonmacminim4home/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos/start-voice.command
+/Users/alstonmacminim4home/Documents/AntiGravity/voicekey/approach-6-whisper-macos/start-voice.command
 ```
 
 會彈出一個 Terminal 視窗顯示即時 log，關閉視窗不影響程式繼續運行。
@@ -43,7 +43,7 @@ Log 輸出位置：`~/Library/Logs/WhisperVoice/app.log`
 ## 從終端機手動啟動
 
 ```bash
-cd /Users/alstonmacminim4home/Documents/AntiGravity/windows_Whisper/approach-6-whisper-macos
+cd /Users/alstonmacminim4home/Documents/AntiGravity/voicekey/approach-6-whisper-macos
 .venv/bin/python main.py
 ```
 

@@ -1,7 +1,7 @@
 # Agent Governance Refactor Report
 
 - Generated: 2026-04-21 23:58:54
-- Project: `windows_Whisper`
+- Project: `voicekey`
 
 ## Phase 1
 
