@@ -31,7 +31,7 @@
 | Code Index | `approach-6-whisper-macos/INDEX.md` | Module routing map — read before opening source files. |
 | Xcode Plan | `planxcode060614.md` | VoiceKey（原 approach-7）架構與分階段實作計畫（新 session 開工必讀）。 |
 | Xcode 原生版 | `voicekey/README.md` + `ISSUES-xcode.md` | VoiceKey 安裝/授權/差異/退場；待真人/跨機項。 |
-| Xcode 踩坑 | `voicekey/GOTCHAS-xcode.md` | macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章避免掉授權、debug dylib crash 的確認解法。動到錄音/簽章/build 設定前必讀。 |
+| Xcode 踩坑 | `voicekey/GOTCHAS-xcode.md` | macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章避免掉授權、debug dylib crash、NSMenuItem emoji 縮排歪掉的確認解法。動到錄音/簽章/build 設定/選單列前必讀。 |
 | Refactor Report | `docs/agent-refactor-report.md` | Historical governance refactor record (archive). |
 
 ## Key Architecture Decisions

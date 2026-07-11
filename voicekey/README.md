@@ -82,8 +82,11 @@ cd voicekey
 
 - **Ctrl + F1**：開始 / 停止錄音（聽到提示音後開始說話）
 - **Ctrl + F10**：循環切換四模式（直接轉錄 / 中翻英 / 專業 / 一般對話）
-- 選單列圖示：模式打勾切換、三層詞彙開檔（VSCode / 預設 App / Finder）、結束程式
+- 選單列圖示：模式打勾切換、三層詞彙開檔（VSCode / 預設 App / Finder）、關於 VoiceKey（版本）、結束程式
 - 狀態列即時顯示：⏸ 待機 / 🔴 錄音中 / 🔄 辨識中 / ⚠️ 錯誤
+- **版本查詢**：選單列 →「📦 關於 VoiceKey (vX.Y.Z build N)」，點擊開標準 About 面板。
+  版本號在 `project.yml` 的 `MARKETING_VERSION` 手動管理；build 號由 `build.sh` / `package.sh`
+  自動取 `git rev-list --count HEAD`，每個 build 可對回 commit。
 
 熱鍵可在 `config.json` 的 `hotkey` 區塊調整。
 

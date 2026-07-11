@@ -81,7 +81,6 @@ final class MenuBarController {
 
         menu.addItem(.separator())
 
-        // 注意：不要用 ℹ️（U+2139+FE0F）— 它在選單裡字寬比一般 emoji 窄，會導致整行縮排歪掉。
         menu.addItem(actionItem("📦 關於 VoiceKey (\(Self.versionString))") {
             NSApp.activate(ignoringOtherApps: true)
             NSApp.orderFrontStandardAboutPanel(nil)
@@ -93,7 +92,42 @@ final class MenuBarController {
         quit.target = NSApp
         menu.addItem(quit)
 
+        // macOS 26 的選單版型對「有勾選/子選單的區塊」與純文字區塊縮排不同，
+        // title 內嵌 emoji 會導致區塊間對不齊；改走標準 image 欄讓系統統一排版。
+        Self.moveLeadingEmojiToImage(in: menu)
+
         statusItem.menu = menu
+    }
+
+    // MARK: - Emoji → image column
+
+    /// 把選單（含子選單）每個項目 title 開頭的 emoji 抽出，改設為 NSMenuItem.image。
+    private static func moveLeadingEmojiToImage(in menu: NSMenu) {
+        for item in menu.items {
+            if let sub = item.submenu { moveLeadingEmojiToImage(in: sub) }
+            guard let first = item.title.first, isEmoji(first) else { continue }
+            let rest = item.title.dropFirst().drop(while: { $0 == " " })
+            item.image = emojiImage(String(first))
+            item.title = String(rest)
+        }
+    }
+
+    private static func isEmoji(_ ch: Character) -> Bool {
+        guard let scalar = ch.unicodeScalars.first else { return false }
+        // 排除數字/ASCII（isEmoji 對 '0'-'9' 也回 true）；FE0F 變體序列一律視為 emoji。
+        return scalar.properties.isEmoji && (scalar.value > 0x238C || ch.unicodeScalars.count > 1)
+    }
+
+    private static func emojiImage(_ emoji: String) -> NSImage {
+        let attrs: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 13)]
+        let textSize = (emoji as NSString).size(withAttributes: attrs)
+        return NSImage(size: NSSize(width: 18, height: 16), flipped: false) { rect in
+            (emoji as NSString).draw(
+                at: NSPoint(x: (rect.width - textSize.width) / 2,
+                            y: (rect.height - textSize.height) / 2),
+                withAttributes: attrs)
+            return true
+        }
     }
 
     /// Refresh the checkmark on the current mode (call when the mode changes).

@@ -63,4 +63,15 @@
 
 ---
 
-> 對應修正 commit 見 git log（2026-06-14 approach-7 實機除錯）。
+## 4. NSMenuItem 標題內嵌 emoji → macOS 26 選單整行縮排歪掉
+
+- **症狀**：選單列選單裡「模式」「詞彙子選單」等項目對齊正常，但「關於 VoiceKey」「結束程式」這類單獨加在最後的項目，emoji + 文字整行相對其他行有明顯位移（偏左或偏右一小段）。換 emoji（ℹ️ → 📦）沒用，emoji 字寬本身不是根因。
+- **根因**：macOS 26 的 `NSMenu` 對「有勾選狀態（`item.state = .on/.off`）或有子選單（`item.submenu`）」的項目，和純文字項目的縮排基準不同。emoji 直接寫進 `item.title` 字串時，不同縮排基準疊加 emoji 字形本身的留白，就會讓那幾行看起來沒對齊；跟 emoji 是哪個字、字寬多少無關。
+- **解法**：**不要把 emoji 混進 `title` 字串**，改用 AppKit 標準的圖示欄位 `NSMenuItem.image`。把每個項目開頭的 emoji 抽出來，畫成 `NSImage`（用 `NSImage(size:flipped:drawingHandler:)` 置中畫出該 emoji 字元），設到 `item.image`，`title` 只留純文字。這樣圖示欄和文字欄都由系統統一版面規則排版，不受「有無勾選/子選單」影響。
+  - 實作見 `VoiceKey/MenuBar/MenuBarController.swift` 的 `moveLeadingEmojiToImage(in:)`（遞迴處理子選單）+ `emojiImage(_:)`。
+  - 判斷「開頭字元是否為 emoji」不能只看 `Character.isEmoji`（ASCII 數字 0-9 也會回 true），要加對 Unicode scalar 值或多 scalar 序列的條件。
+  - **教訓**：以後選單項目一律用 `item.image` 放圖示/emoji，不要圖方便直接串進 `title` 字串。
+
+---
+
+> 對應修正 commit 見 git log（2026-06-14 approach-7 實機除錯；2026-07-11 選單 emoji 對齊修正）。
