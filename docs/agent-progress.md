@@ -2,6 +2,12 @@
 
 ## Recent Progress
 
+### 2026-07-12 — 本機跨機部署（路徑 A）+ 部署後驗證 #1/#2
+
+- **部署**：`VoiceKey-macOS-20260712.dmg` → `/Applications/VoiceKey.app`（覆蓋 7/11 建置）；quarantine 已清；`env.local` 沿用（chmod 600）；麥克風系統預設（USB Audio & HID）。
+- **煙測**：Ctrl+F1 錄音 → STT → LLM → 貼上（ok=true）；輔助使用已勾選。
+- **部署後驗證**：#1 多 App 貼上、#2 模式切換（選單 + Ctrl+F10）— 真人確認通過。
+- **待辦**：#3–#7 及選配項記於根目錄 `todo.md`「部署後真人驗證」區塊。
 ### 2026-07-12 — AGENTS/README 補強（分發不進 git、跨機步驟、iCloud git）
 
 - `AGENTS.md`：明寫 zip/dmg 不進 git；iCloud 目錄下 git 易卡（aheadBehind / 改 `/tmp` 複本）。

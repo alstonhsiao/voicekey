@@ -7,7 +7,7 @@
 > 文件索引：僅本檔（根目錄）使用 `README.md`；各子資料夾以 `INDEX.md` 為入口（見 [docs/INDEX.md](docs/INDEX.md)）。  
 > Agent 開工先讀 [AGENTS.md](AGENTS.md)。
 
-**現況（2026-07-12）**：主力 VoiceKey 本機煙測通過（錄音→STT→LLM→貼上）；分發包產製腳本與跨機 INSTALL 已就緒；`.app` 的 zip/dmg **不進 git**，需本機 `package` 後另傳。
+**現況（2026-07-12）**：本機路徑 A 部署完成（`VoiceKey-macOS-20260712.dmg` → `/Applications/VoiceKey.app`）；煙測通過；部署後驗證 **#1 多 App 貼上**、**#2 模式切換** 已確認。#3–#7 待測見 [todo.md](todo.md)。分發腳本與 [INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md) 已就緒；zip/dmg **不進 git**，需本機 `package` 後另傳。
 
 ---
 
@@ -101,6 +101,14 @@ cd voicekey
    - Log：`~/Library/Logs/VoiceKey/app.log`
 
 也可請目標機上的 AI agent 執行安裝（需你提供 zip/dmg 路徑與 API keys）。
+
+### 部署後驗證（每台 Mac 建議）
+
+| # | 項目 | 本機 |
+|---|---|---|
+| 1 | 多 App 貼上（TextEdit / Safari / IDE 等） | ✅ |
+| 2 | 模式切換（選單打勾 + Ctrl+F10） | ✅ |
+| 3–7 | 專有名詞、簡體修正、冷啟動、單例鎖、選單列 UI | 見 [todo.md](todo.md) |
 
 ---
 

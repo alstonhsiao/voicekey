@@ -20,13 +20,31 @@
 - [x] **端到端真人煙測**（2026-07-12 log 驗證）
   - [x] Ctrl+F1 → 錄音 → Grok STT → Cerebras LLM → CGEvent 貼上（ok=true）
   - [x] 簡體 STT `测试…` → LLM 修成 `測試測試123看看是不是很正常。`（STT 925ms / LLM 487ms）
-  - [ ] （選配）Ctrl+F10 / 選單切模式、詞彙熱重載再實機確認
+  - [x] Ctrl+F10 / 選單切模式（2026-07-12 部署後真人驗證 #2）
+
+---
+
+## 部署後真人驗證（本機，2026-07-12 起）
+
+> 路徑 A（`VoiceKey-macOS-20260712.dmg`）已裝至 `/Applications`；基礎煙測 + 輔助使用已通過。  
+> 有空再逐項勾；log：`~/Library/Logs/VoiceKey/app.log`。
+
+- [x] **#1 多 App 貼上** — TextEdit 以外（Safari / Cursor 等）確認 CGEvent 貼上正常
+- [x] **#2 模式切換** — 選單列 🎤 四模式打勾 + `Ctrl+F10` 循環，標題更新正確
+- [ ] **#3 中文 + 專有名詞** — 講含人名、公司名、專案名的句子；對照 log raw STT → LLM
+- [ ] **#4 簡體輸入修正** — 故意講簡體或混雜用語，確認 Cerebras 轉繁體符合習慣
+- [ ] **#5 冷啟動** — 選單列結束程式 → 雙擊 `/Applications/VoiceKey.app` 再煙測；權限不應掉
+- [ ] **#6 單例鎖** — 再 `open /Applications/VoiceKey.app`，應只留一個實例
+- [ ] **#7 選單列 UI** — 🎤 常駐、狀態 🔴→🔄→⏸ 即時、詞彙管理選單可開
+- [ ] **（選配）長錄音** — 30s+ 延遲與穩定性
+- [ ] **（選配）API 降級** — 暫時錯 key，確認不崩潰、降級回 raw STT
+- [ ] **（選配）重開機後** — 確認是否要手動啟動或加登入項目
 
 ---
 
 ## 中優先
 
-- [ ] **跨機部署到其他 Mac mini**（產物已備；待到目標機實裝）
+- [ ] **跨機部署到其他 Mac mini**（本機路徑 A 已完成；其他 Mac 待到機實裝）
   - 分發：`voicekey/dist/VoiceKey-macOS-20260712.zip` / `.dmg`
   - 步驟見 `voicekey/dist/INSTALL-zh-TW.md`
   - 各機：右鍵開啟（未 notarize）；各自麥克風/輔助使用
