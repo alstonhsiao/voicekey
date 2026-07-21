@@ -5,7 +5,6 @@
   - 各 provider 的 key 名稱：`OPENAI_API_KEY`、`GROK_API_KEY`、`GROQ_API_KEY`、`CEREBRAS_API_KEY`
 - 任何需要呼叫 provider 的測試前，先用 `scripts/test_api_key.py` 或 `scripts/test_cerebras.py` 驗證 API 連線（免費，不消耗 token）。
 - Keys 不可出現在程式碼、log 輸出、或 git history 中。
-- `approach-6-whisper-macos/` 內的 `.bak` 檔是本地備份，不可 commit 也不可修改。
 
 ## Execution Order
 - Step 1: Read `AGENTS.md` and the quick map first.

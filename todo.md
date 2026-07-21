@@ -1,6 +1,6 @@
 # TODO — voicekey 專案
 
-> 主力：**VoiceKey**（`voicekey/`）。approach-6 凍結；approach-3 封存。  
+> 主力：**VoiceKey**（`voicekey/`）。
 > 詳細真人/跨機項見 `voicekey/ISSUES-xcode.md`；踩坑見 `voicekey/GOTCHAS-xcode.md`。
 
 ---
@@ -76,24 +76,10 @@
 - [ ] **系統音訊 / loopback 轉錄**
   - 目前只錄麥克風；YouTube 等需 BlackHole 類虛擬裝置 + 裝置選擇 UI
 
-- [ ] **穩定一段時間後刪除 approach-6**
-  - 確認 VoiceKey 日常可替代後，整目錄移除（目前仍為退路）
-
----
-
-## 取消 / 不再適用（approach-6 時代）
-
-- [x] ~~approach-6 原生 HUD（PyObjC NSPanel）~~ → approach-6 凍結；VoiceKey 用選單列狀態，不重做 Tk HUD
-- [x] ~~approach-7：完整 PyObjC app~~ → 已用原生 Swift/AppKit（VoiceKey）取代
-- [x] ~~OpenCC 後處理（approach-6）~~ → Python 版已有；VoiceKey 刻意省略，見上「OpenCC 保底」
-- [x] ~~config.local.json 多機覆蓋（Python）~~ → VoiceKey 已實作 deep merge
-- [x] ~~Python vs Xcode 決策~~ → 已定：VoiceKey 主力，approach-6 凍結
-
 ---
 
 ## 已完成（摘要）
 
-- [x] approach-6 全管線（STT + Cerebras + 拼音詞彙 + 貼上 + rumps + macOS 26）
 - [x] VoiceKey Phase 0→7（Swift 原生版）+ 34 單元測試
 - [x] 實機驗證：錄音→Grok STT→Cerebras→拼音詞彙→自動貼上
 - [x] STT keyterm 動態合併 + 熱重載修正（user vocab 優先）

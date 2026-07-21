@@ -2,7 +2,7 @@
 
 ## Project Purpose
 語音轉文字工具（Grok STT / OpenAI / Groq + Cerebras LLM，macOS 主力）。
-**VoiceKey**（`voicekey/`）為主力方案；approach-6 已凍結作退路；approach-3 已封存（Windows，勿修改）。
+**VoiceKey**（`voicekey/`）為主力方案；前代 Python 方案已歸檔，歷史摘要見 `docs/archive/approach-6-macos.md`。
 
 ## Runtime Profile（VoiceKey）
 - Primary language: Swift 5.9+（AppKit menu bar agent）
@@ -20,9 +20,6 @@
 | `docs/INDEX.md` | Agent 文件路由索引 |
 | `voicekey/GOTCHAS-xcode.md` | 錄音/簽章/選單列踩坑 |
 | `voicekey/ISSUES-xcode.md` | 待真人/跨機項 |
-| `approach-6-whisper-macos/` | 凍結退路（Python，勿再修改） |
-| `approach-6-whisper-macos/INDEX.md` | Python 版模組路由（僅查退路時讀） |
-| `approach-3-python-exe/INDEX.md` | 封存方案（Windows）模組索引 |
 | `scripts/INDEX.md` | 開發驗證腳本索引 |
 | `docs/archive/INDEX.md` | 已完工歷史施工藍圖索引 |
 | `env.local` | 開發用 API keys（project root，git-ignored） |
@@ -32,6 +29,3 @@
 
 ## Scope Boundaries
 - Prefer changes inside `voicekey/` unless explicitly working on frozen/archived approaches.
-- approach-6 is frozen; do not modify unless explicitly requested.
-- approach-3 is archived; do not modify unless explicitly requested.
-- Use `INDEX.md` before reading raw source files in approach-6.

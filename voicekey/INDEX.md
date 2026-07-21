@@ -1,6 +1,6 @@
 # voicekey — VoiceKey Index（原 approach-7 / WhisperVoice，2026-07-11 改名）
 
-> 凍結 Python 退路（`approach-6-whisper-macos/`）的原生 Swift / AppKit 重寫版，現為**主力方案**。
+> 前代 Python 方案的原生 Swift / AppKit 重寫版，現為**主力方案**。
 > 歷史施工藍圖見 `docs/archive/planxcode060614.md`；治理見 `AGENTS.md`。
 
 ## 本目錄文件
@@ -16,11 +16,11 @@
 ## 這是什麼
 
 選單列常駐 App（無 Dock 圖示），按熱鍵錄音 → Grok STT → Cerebras LLM 修正 →
-三層詞彙精修 → 自動貼上到游標處。功能與 approach-6 對等。
+三層詞彙精修 → 自動貼上到游標處。功能與前代 Python 版對等。
 
-### 與 Python 版的差異
+### 與前代 Python 版的差異
 
-| 面向 | Python（approach-6） | Xcode 原生版（approach-7） |
+| 面向 | Python（前代） | Xcode 原生版（VoiceKey） |
 | --- | --- | --- |
 | 全局熱鍵 | pynput（需「輸入監控」授權） | Carbon `RegisterEventHotKey`（**免輸入監控**） |
 | 錄音 | sounddevice | AVAudioEngine + CoreAudio 裝置選擇 |
@@ -30,7 +30,7 @@
 | 打包 | venv + pip | 單一 `.app`，拖進 `/Applications` 即可 |
 | 閒置記憶體 | ~149MB | 預期 < 40MB |
 
-三層詞彙、四模式、provider 抽象、session log、config 行為皆與 Python 版一致。
+三層詞彙、四模式、provider 抽象、session log、config 行為皆與前代 Python 版一致。
 
 ## 建置需求
 
@@ -130,15 +130,12 @@ cd voicekey
 
 詳見 `dist/INSTALL-zh-TW.md`。Developer ID + notarization → 日後選配。
 
-## 退場 / 並排存活
+## 歷史來源
 
-- Python 版（`approach-6-whisper-macos/`）完全不動，隨時可回去用。
-- 兩版**不要同時執行**：會搶同一個全局熱鍵與同一支 session log
-  （`~/.whisper_voice_log.db`）。
-- 不滿意 Xcode 版：刪掉整個 `voicekey/` 即可，Python 版零影響。
+VoiceKey 取代的前代 Python 實作已移除；保留的設計決策、踩坑、OpenCC 差異與 Git 恢復方式見
+`docs/archive/approach-6-macos.md`。
 
 ## 已知待辦 / 踩坑
 
 - 需真人操作或跨機驗證的項目 → `ISSUES-xcode.md`
 - 實機除錯踩過的坑與**確認解法**（macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章、debug dylib crash）→ `GOTCHAS-xcode.md`
-

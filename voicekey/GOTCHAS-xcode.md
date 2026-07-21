@@ -26,7 +26,7 @@
 - **根因**：改裝置後 `inputNode.outputFormat(forBus:0)` **不會更新**，仍是 engine 建立當下「系統預設裝置」的格式；`installTap(format: nil)` 會用這個過時格式，和新裝置真實硬體格式不符 → chain 初始化失敗。
 - **解法**：tap 格式改用 **`inputNode.inputFormat(forBus: 0)`**（即時查 AUHAL，反映目前選定裝置的真實硬體格式），不要用 `nil` 也不要用 `outputFormat`。並加 `sampleRate > 0` guard。
 
-> 三者最終正確順序：建新 engine → 設裝置 → 讀 `inputFormat(forBus:0)` → `installTap(format: 該格式)` → `engine.start()`。對齊 approach-6 Python 的「audio thread 只累積 buffer、轉檔在 stop() 做」設計。
+> 三者最終正確順序：建新 engine → 設裝置 → 讀 `inputFormat(forBus:0)` → `installTap(format: 該格式)` → `engine.start()`。對齊前代 Python 實作的「audio thread 只累積 buffer、轉檔在 stop() 做」設計。
 
 ### 1d. `AVAudioEngine.inputNode` / `inputFormat` 偶發卡住，導致整個選單列無反應
 - **症狀**：log 最後停在「🔴 錄音中...」，沒有「錄音裝置」或「硬體格式」；選單列不能點、也不能用選單結束；`sample <pid>` 顯示主執行緒卡在 `VoiceController.startRecording()` → `AudioRecorder.start()` → `AVAudioEngine.inputNode` / CoreAudio HAL 查詢。

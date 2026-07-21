@@ -1,8 +1,0 @@
-sounddevice==0.5.5
-soundfile==0.14.0
-numpy==2.4.6
-requests==2.34.2
-pynput==1.8.2
-pyperclip==1.11.0
-pystray==0.19.5
-Pillow==11.2.1

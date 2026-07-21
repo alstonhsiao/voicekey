@@ -16,8 +16,6 @@ venv/
 build/
 
 # 二進位分發產物（說明文件要進 git）
-approach-3-python-exe/dist/
-approach-3-python-exe/build/
 voicekey/dist/*.zip
 voicekey/dist/*.dmg
 voicekey/dist/_dmg/

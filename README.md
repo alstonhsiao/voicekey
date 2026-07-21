@@ -7,7 +7,7 @@
 > 文件索引：僅本檔（根目錄）使用 `README.md`；各子資料夾以 `INDEX.md` 為入口（見 [docs/INDEX.md](docs/INDEX.md)）。  
 > Agent 開工先讀 [AGENTS.md](AGENTS.md)。
 
-**現況（2026-07-12）**：本機路徑 A 部署完成（`VoiceKey-macOS-20260712.dmg` → `/Applications/VoiceKey.app`）；煙測通過；部署後驗證 **#1 多 App 貼上**、**#2 模式切換** 已確認。#3–#7 待測見 [todo.md](todo.md)。分發腳本與 [INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md) 已就緒；zip/dmg **不進 git**，需本機 `package` 後另傳。
+**現況（2026-07-22）**：本機路徑 A 部署完成（`VoiceKey-macOS-20260712.dmg` → `/Applications/VoiceKey.app`）；煙測通過；部署後驗證 **#1 多 App 貼上**、**#2 模式切換** 已確認。#3–#7 待測見 [todo.md](todo.md)。approach-3 與 approach-6 原始碼已移除，歷史摘要見 [Windows 方案](docs/archive/approach-3-windows.md) 與 [macOS Python 方案](docs/archive/approach-6-macos.md)。分發腳本與 [INSTALL-zh-TW.md](voicekey/dist/INSTALL-zh-TW.md) 已就緒；zip/dmg **不進 git**，需本機 `package` 後另傳。
 
 ---
 
@@ -16,8 +16,6 @@
 | 方案 | 平台 | 狀態 | 說明 |
 |---|---|---|---|
 | **VoiceKey**（`voicekey/`） | macOS | ✅ **主力** | 原生 Swift/AppKit。本機實機跑通全管線；34 單元測試。見 [voicekey/INDEX.md](voicekey/INDEX.md) |
-| **approach-6-whisper-macos** | macOS | 🧊 **凍結退路** | Python + rumps。2026-07-11 起不再修改 |
-| **approach-3-python-exe** | Windows | 🗄️ **封存** | .exe 打包方案，勿改除非明確需求 |
 
 ---
 
@@ -120,19 +118,6 @@ cd voicekey
 | `zh2en` | 中翻英 | 說中文，輸出英文 |
 | `pro` | 專業模式 | 技術術語保留英文 |
 | `casual` | 一般對話 | 口語化 |
-
----
-
-## approach-6（凍結退路）
-
-僅在 VoiceKey 不可用時使用。安裝見 [approach-6-whisper-macos/INDEX.md](approach-6-whisper-macos/INDEX.md) 與 `install.sh`。  
-**勿與 VoiceKey 同時執行**（搶熱鍵與 log）。
-
----
-
-## approach-3（Windows 封存）
-
-見 [approach-3-python-exe/INDEX.md](approach-3-python-exe/INDEX.md)。打包前確認 config 內無真實 API key。
 
 ---
 

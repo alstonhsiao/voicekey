@@ -1,6 +1,6 @@
 # Plan — WhisperVoice Xcode 原生版（voicekey）
 
-> **歸檔狀態（2026-07-12）**：已完工（2026-06-14，Phase 0–7 全數完成）。現役見 `voicekey/INDEX.md` + `GOTCHAS-xcode.md`；approach-6 已凍結。本檔僅供歷史參考。
+> **歸檔狀態（2026-07-22）**：已完工（2026-06-14，Phase 0–7 全數完成）。現役見 `voicekey/INDEX.md` + `GOTCHAS-xcode.md`；前代 Python 方案已移除，設計摘要見 `docs/archive/approach-6-macos.md`。本檔僅供歷史參考。
 >
 > 建立日期：2026-06-14
 > 目標：把現役 Python 方案（approach-6）重寫為原生 Swift / AppKit macOS App，

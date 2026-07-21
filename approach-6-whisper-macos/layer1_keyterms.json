@@ -1,4 +1,0 @@
-{
-  "_comment": "第一層 Grok STT 額外關鍵詞。改完存檔即可，程式會自動重載，不必重啟。這裡的 keyterms 會與 config.json grok_keyterms 和 user_vocab.json 合併，總數截斷至 config.vocab.stt_keyterm_limit（預設 10）。範例：\"keyterms\": [\"蕭淳云\", \"Zeabur\"]",
-  "keyterms": []
-}

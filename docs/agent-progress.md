@@ -2,6 +2,26 @@
 
 ## Recent Progress
 
+### 2026-07-22 — 移除早期 Windows `.exe` 方案
+
+- 唯讀盤點確認 `approach-3-python-exe/` 沒有被 VoiceKey、建置腳本或部署流程依賴；僅有治理與歷史文件引用。
+- 移除 5 個原始檔（約 36 KB），Git 歷史仍保留完整 source；歷史摘要見 `docs/archive/approach-3-windows.md`。
+- 同步清理現行治理文件、README、索引與 `.gitignore`；未修改 VoiceKey 或 approach-6 程式邏輯。
+
+### 2026-07-22 — 將前代 macOS Python 方案歸檔並移除
+
+- `config.json` 與三個預設詞彙 JSON 已確認與 VoiceKey Resources 一致；無需另行保留設定資料。
+- 將前代方案的架構、OpenCC 差異、macOS 26 踩坑、fallback 原則與 Git 恢復方式集中至 `docs/archive/approach-6-macos.md`。
+- 移除 `approach-6-whisper-macos/` 及其本機 Python 虛擬環境；VoiceKey 不再保留可直接執行的 Python 回退版本。
+- `scripts/test_vocab.py` 已由 VoiceKey 的 Swift `VocabStoreTests` 取代，連同其索引項目移除。
+
+### 2026-07-13 — 本機升級安裝 VoiceKey
+
+- 偵測到 `/Applications/WhisperVoice.app` 舊版 v0.1.0 build 1；未發現舊 App 正在執行。
+- 依 `voicekey/package.sh` 以目前原始碼重建 Release：VoiceKey v0.1.0 build 47，universal arm64+x86_64；self-signed 簽章與 `codesign --verify --deep --strict` 通過。
+- 移除舊 `/Applications/WhisperVoice.app`，安裝並啟動 `/Applications/VoiceKey.app`；bundle id `com.alston.VoiceKey`。
+- 首次啟動成功遷移舊 App Support 資料（env.local、詞彙檔、lock），API keys 就緒，麥克風權限已授權；輔助使用尚未授權，需到系統設定開啟後才能自動貼上。
+
 ### 2026-07-12 — 本機跨機部署（路徑 A）+ 部署後驗證 #1/#2
 
 - **部署**：`VoiceKey-macOS-20260712.dmg` → `/Applications/VoiceKey.app`（覆蓋 7/11 建置）；quarantine 已清；`env.local` 沿用（chmod 600）；麥克風系統預設（USB Audio & HID）。
@@ -41,7 +61,7 @@
 
 - 慣例：僅根目錄保留 `README.md`；其餘資料夾以 `INDEX.md` 為路由索引（見 `AGENTS.md` Always-On Rules）。
 - `voicekey/README.md` → `voicekey/INDEX.md`；`docs/archive/README.md` → `docs/archive/INDEX.md`。
-- 新增：`docs/INDEX.md`、`scripts/INDEX.md`、`approach-3-python-exe/INDEX.md`、`voicekey/dist/INDEX.md`。
+- 新增：`docs/INDEX.md`、`scripts/INDEX.md`、`voicekey/dist/INDEX.md`。
 - 更新引用：`AGENTS.md`、`README.md`、`docs/agent-context.md`、`docs/archive/` 內 plan 檔。
 
 ### 2026-07-12 — 歸檔完工計畫文件
@@ -72,7 +92,7 @@
   - 合併優先序改為 **user vocab（layer3）→ layer1 → mode 靜態 keyterms**，使用者維護的詞彙檔不再被靜態設定擠出。
   - `Mode.grokKeyterms` 語義改為「config 原始 base 值」，不再於啟動時被改寫。
 - 測試：新增 `testMergeKeytermsUserVocabWinsOverStaticModeList`、`testMergeKeytermsDedupsAndSkipsEmpty`；**34 tests green**（`CODE_SIGNING_ALLOWED=NO` + `DEVELOPER_DIR` 指向 Xcode.app）。
-- 決策記錄：approach-6 → approach-7 為最終遷移方向；approach-6 凍結、待 approach-7 穩定使用一段時間後刪除。所有後續改善只做在 approach-7。
+- 決策記錄：approach-6 → approach-7 為最終遷移方向；VoiceKey 穩定後移除前代 Python 實作。所有後續改善只做在 VoiceKey。
 
 ### 2026-06-19 — 台灣口語數字轉半形阿拉伯數字 + approach-7 更新安裝
 
@@ -200,7 +220,7 @@
 
 - P0：`~/.whisper_voice_log.db` chmod 600；刪除重複根目錄 `.env.local`
 - P1：WAV 暫存改隨機 NamedTemporaryFile；PID/lock 移至 `~/Library/Application Support/WhisperVoice/`；processing_flag 防 race condition；requirements.txt 全鎖版；install.sh 靜默讀 key + chmod 600；.command 改相對路徑；重啟腳本加 PID 比對防誤殺
-- P2：approach-3 封存修正（build.bat 移除金鑰打包風險）；approach-6 main.py 拆 9 模組；logging 模組取代 print；config schema 驗證；test scripts 不印秘密字元；install_manual.md 補套件
+- P2：早期 Windows `.exe` 原型完成封存前安全修正（build.bat 移除金鑰打包風險）；approach-6 main.py 拆 9 模組；logging 模組取代 print；config schema 驗證；test scripts 不印秘密字元；install_manual.md 補套件
 - 詳見 git log：`edcbc22`、`dec3853`、`146ccc9`
 
 ---
