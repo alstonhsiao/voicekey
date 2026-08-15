@@ -27,6 +27,7 @@ targets:
       - path: VoiceKey
     dependencies:
       - sdk: libsqlite3.tbd
+      - sdk: ServiceManagement.framework
     settings:
       base:
         PRODUCT_NAME: VoiceKey
@@ -35,6 +36,7 @@ targets:
         INFOPLIST_FILE: VoiceKey/Info.plist
         CODE_SIGN_ENTITLEMENTS: VoiceKey/VoiceKey.entitlements
         GENERATE_INFOPLIST_FILE: NO
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 自用、不 notarize，關閉 hardened runtime：self-signed 憑證（TeamID not set）
         # 搭配 hardened runtime 會讓 dyld 以 Team ID 不符為由拒載入 dylib。
         ENABLE_HARDENED_RUNTIME: NO

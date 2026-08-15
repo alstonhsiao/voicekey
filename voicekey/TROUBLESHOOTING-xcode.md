@@ -50,6 +50,7 @@
   3. **換簽章 identity 後仍要重新授權一次**：移除舊的白紙殘骸 → 啟動新 app → 授權 → 重啟生效。之後 rebuild 永久有效。
 
 ### setup-signing-cert.sh 本身踩過的坑（已在腳本內修掉，供參）
+- **重跑腳本會換憑證、導致輔助使用掉授權**：同一個 CN 名稱不代表同一張憑證；leaf fingerprint 改變後，TCC 會視為不同 identity。腳本現在若偵測到一個可用的 `VoiceKey Self-Signed` identity 會直接重用；只有明確設定 `VOICEKEY_RECREATE_SIGNING_CERT=1` 才刪除並重建，且換證後必須重新授權一次。
 - **`security import` 回 `MAC verification failed`**：①Homebrew OpenSSL 3.x 產的 p12 用新版 MAC，macOS 不認 → 改用 `/usr/bin/openssl`（LibreSSL）。②**空密碼**的 p12 也被拒 → 給一個非空臨時密碼（`-passout pass:xxx` + `import -P xxx`）。
 - **codesign 回 `ambiguous, matches more than one`**：keychain 堆積多張同名憑證。`delete-certificate -c name` 在多張時會拒刪，**必須用 SHA-1 逐一刪**：`find-certificate -a -c NAME -Z` 抓 hash → `delete-certificate -Z <sha1>`。腳本開頭已自動做這件事。
 - **`CERT_CN: unbound variable`（bash）**：`echo "...「$CERT_CN」..."` 變數後緊貼全形字元，在非 UTF-8 locale 下 bash 把多位元組 byte 併進變數名 → `set -u` 報錯。解法：變數用 `${CERT_CN}` 並避免緊貼全形標點。

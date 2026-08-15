@@ -44,6 +44,10 @@ cd voicekey
 bash setup-signing-cert.sh   # 建 self-signed code-signing 憑證，匯入 login keychain
 ```
 
+腳本可安全重跑：若已有一個可用的 `VoiceKey Self-Signed` identity，會直接重用，
+不會換掉憑證指紋。只有確定要換證時才執行
+`VOICEKEY_RECREATE_SIGNING_CERT=1 bash setup-signing-cert.sh`；換證後輔助使用必須重新授權。
+
 **為什麼必要**：若用 ad-hoc 簽章（`codesign -s -`），每次 rebuild 都會產生新 cdhash，
 macOS「輔助使用」授權綁的是 path+cdhash → **每次重編都掉授權**，文字無法自動貼上。
 改用固定的 self-signed 憑證後，TCC 改綁憑證 identity，rebuild 不再掉授權（只需授權一次）。
@@ -90,19 +94,31 @@ cd voicekey
 
 - **Ctrl + F1**：開始 / 停止錄音（聽到提示音後開始說話）
 - **Ctrl + F10**：循環切換四模式（直接轉錄 / 中翻英 / 專業 / 一般對話）
-- 選單列圖示：模式打勾切換、三層詞彙開檔（VSCode / 預設 App / Finder）、關於 VoiceKey（版本）、結束程式
+- 選單列圖示：模式打勾切換、三層詞彙開檔（VSCode / 預設 App / Finder）、**設定…（⌘,）**、關於 VoiceKey（版本）、結束程式
 - 狀態列即時顯示：⏸ 待機 / 🔴 錄音中 / 🔄 辨識中 / ⚠️ 錯誤
 - **版本查詢**：選單列 →「📦 關於 VoiceKey (vX.Y.Z build N)」，點擊開標準 About 面板。
   版本號在 `project.yml` 的 `MARKETING_VERSION` 手動管理；build 號由 `build.sh` / `package.sh`
   自動取 `git rev-list --count HEAD`，每個 build 可對回 commit。
 
-熱鍵可在 `config.json` 的 `hotkey` 區塊調整。
+熱鍵預設 Ctrl+F1 / Ctrl+F10；可在「設定… → 熱鍵」或 `config.local.json` 的 `hotkey` 區塊調整（僅 F1–F20 + 修飾鍵）。
+
+## 設定視窗（選單「設定…」或 ⌘,）
+
+五個分頁，繁體中文：一般 / 熱鍵 / 錄音 / API 金鑰 / LLM。
+
+- **首次啟動**預設「專業模式」；之後預設記住最後使用的模式（可在一般分頁關閉）。
+- 可即時套用的項目（記住模式、固定預設、登入項目）不需重啟。
+- 詞彙、關鍵詞上限、錄音裝置／取樣率、API key、LLM 變更會在**閒置時**重建 runtime；錄音或辨識中會拒絕並保留舊設定。
+- 熱鍵套用失敗會恢復舊組合，不會留下無熱鍵狀態。
 
 ## 設定與詞彙
 
-- **`config.json`**：隨 `.app` 內建的預設值（modes / api / hotkey / vocab）。
+- **`config.json`**：隨 `.app` 內建的預設值（modes / api / hotkey / vocab）。`default_mode_id` 為 `pro`。
 - **`config.local.json`**（放 `~/Library/Application Support/VoiceKey/`）：
-  本機覆蓋，deep merge，不同步到其他機器（多台 Mac 用）。
+  本機覆蓋，deep merge，不同步到其他機器（多台 Mac 用）。Settings 只寫 override，不把整份 bundled config 倒回去。
+- **UserDefaults**：`VoiceKey.rememberLastMode`（未設定視為開）、`VoiceKey.lastModeId`。
+- **API keys**：只寫 Keychain（service `com.alston.VoiceKey`）。優先序仍是環境變數 → `env.local` → Keychain → `config.json`。若較高優先來源已有值，設定頁會提示 Keychain 變更不會立即生效。
+- **登入時自動啟動**：`SMAppService.mainApp`（需安裝在 `/Applications`；若系統顯示待批准，請到「登入項目」勾選）。
 - **三層詞彙**（首次啟動自動從 bundle 種子到 App Support，可直接編輯、存檔即熱重載）：
   - `layer1_keyterms.json`：Grok STT 額外關鍵詞
   - `layer2_corrections.json`：LLM 修正詞（names + corrections，動態注入 prompt）

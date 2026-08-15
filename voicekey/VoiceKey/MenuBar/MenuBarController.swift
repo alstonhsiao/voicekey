@@ -16,9 +16,12 @@ final class MenuBarController {
     private var actions: [MenuAction] = []                 // retain action targets
     private var modeItems: [(id: String, item: NSMenuItem)] = []
 
-    init(modeManager: ModeManager, vocab: VocabStores) {
+    private let onOpenSettings: () -> Void
+
+    init(modeManager: ModeManager, vocab: VocabStores, onOpenSettings: @escaping () -> Void) {
         self.modeManager = modeManager
         self.vocab = vocab
+        self.onOpenSettings = onOpenSettings
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         statusItem.button?.title = Self.title(for: .idle)
         rebuildMenu()
@@ -80,6 +83,13 @@ final class MenuBarController {
         menu.addItem(vocabSubmenu("🗂 第三層 — 拼音替換詞", vocab.vocabPath.lastPathComponent, vocab.vocabPath))
 
         menu.addItem(.separator())
+
+        let settings = actionItem("設定…") { [weak self] in
+            self?.onOpenSettings()
+        }
+        settings.keyEquivalent = ","
+        settings.keyEquivalentModifierMask = [.command]
+        menu.addItem(settings)
 
         menu.addItem(actionItem("📦 關於 VoiceKey (\(Self.versionString))") {
             NSApp.activate(ignoringOtherApps: true)
@@ -156,13 +166,13 @@ final class MenuBarController {
 
         sub.addItem(.separator())
         sub.addItem(actionItem("用 VSCode 開啟") {
-            Self.open(["-a", "Visual Studio Code", path.path], label: "用 VSCode 開啟")
+            VocabFileActions.openInVSCode(path)
         })
         sub.addItem(actionItem("用預設 App 開啟") {
-            Self.open([path.path], label: "用預設 App 開啟")
+            VocabFileActions.openInDefaultApp(path)
         })
         sub.addItem(actionItem("在 Finder 中顯示") {
-            Self.open(["-R", path.path], label: "在 Finder 中顯示")
+            VocabFileActions.revealInFinder(path)
         })
 
         parent.submenu = sub
@@ -177,8 +187,23 @@ final class MenuBarController {
         return item
     }
 
+}
+
+enum VocabFileActions {
+    static func openInVSCode(_ path: URL) {
+        open(["-a", "Visual Studio Code", path.path], label: "用 VSCode 開啟")
+    }
+
+    static func openInDefaultApp(_ path: URL) {
+        open([path.path], label: "用預設 App 開啟")
+    }
+
+    static func revealInFinder(_ path: URL) {
+        open(["-R", path.path], label: "在 Finder 中顯示")
+    }
+
     /// Open vocab file via `/usr/bin/open`. Any failure only logs.
-    private static func open(_ args: [String], label: String) {
+    static func open(_ args: [String], label: String) {
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
         task.arguments = args

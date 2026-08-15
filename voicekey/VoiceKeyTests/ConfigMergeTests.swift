@@ -79,6 +79,23 @@ final class ConfigMergeTests: XCTestCase {
         if case .candidates(let c) = InputDeviceSpec(["A", "B"]) { XCTAssertEqual(c, ["A", "B"]) } else { XCTFail("array") }
     }
 
+    func testBundledDefaultModeIdIsPro() throws {
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "config", withExtension: "json"))
+        let data = try Data(contentsOf: url)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        XCTAssertEqual(json["default_mode_id"] as? String, "pro")
+    }
+
+    func testBuildFallbackDefaultModeIsPro() throws {
+        let raw: [String: Any] = [
+            "modes": [["id": "pro", "name": "專業"], ["id": "casual", "name": "一般"]],
+            "api": ["provider": "grok"],
+            "recording": ["sample_rate": 16000, "channels": 1],
+        ]
+        let cfg = try ConfigLoader.build(from: raw)
+        XCTAssertEqual(cfg.defaultModeId, "pro")
+    }
+
     func testBundledConfigLoads() throws {
         // Bundled config.json should load + validate via the real loader.
         let cfg = try ConfigLoader.load()

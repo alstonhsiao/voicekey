@@ -38,7 +38,15 @@
 - [ ] **#7 選單列 UI** — 🎤 常駐、狀態 🔴→🔄→⏸ 即時、詞彙管理選單可開
 - [ ] **（選配）長錄音** — 30s+ 延遲與穩定性
 - [ ] **（選配）API 降級** — 暫時錯 key，確認不崩潰、降級回 raw STT
-- [ ] **（選配）重開機後** — 確認是否要手動啟動或加登入項目
+- [ ] **（選配）重開機後** — 確認是否要手動啟動；Settings「登入時自動啟動」已可用，待真人在系統「登入項目」確認 `.enabled` / `.requiresApproval`
+
+- [x] **Settings 視窗（2026-08-15）** — 選單「設定…」`⌘,`；五 tab；首次 pro、之後記住 last；config.local 原子寫入；Keychain；runtime swap + 熱鍵 rollback
+  - [x] 單元測試 72（1 live API skipped）
+  - [x] `/Applications/VoiceKey.app` 已更新（v0.1.0 build 51，self-signed leaf `5F6677…` 未換證）
+  - [ ] 真人：輔助使用仍未勾選（換 icon 後待勾選帶藍色 icon 的 VoiceKey）後驗證自動貼上
+  - [ ] 真人：錄音中改 runtime 設定應拒絕；熱鍵衝突時舊熱鍵仍可用
+  - [ ] 真人：USB 重新掃描後下次錄音用新裝置
+  - [ ] 真人：登入項目 register / 系統設定一致
 
 ---
 

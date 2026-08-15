@@ -28,6 +28,19 @@ final class VoiceController {
     /// Phase 4: menu bar observes state changes.
     var onStateChange: ((VoiceState) -> Void)?
 
+    /// Thread-safe: recording or in-flight transcription. Settings must not rebuild while busy.
+    var isBusy: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return isRecording || isProcessing
+    }
+
+    var currentState: VoiceState {
+        lock.lock(); defer { lock.unlock() }
+        if isRecording { return .recording }
+        if isProcessing { return .processing }
+        return .idle
+    }
+
     init(config: AppConfig,
          modeManager: ModeManager,
          transcribe: TranscribeProvider,

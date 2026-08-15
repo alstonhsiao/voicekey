@@ -97,6 +97,27 @@ struct RecordingConfig {
     let inputDevice: InputDeviceSpec
 }
 
+extension InputDeviceSpec {
+    /// Value written into `config.local.json` (never a bundled dump).
+    func jsonValue() -> Any {
+        switch self {
+        case .systemDefault: return NSNull()
+        case .index(let i): return i
+        case .name(let n): return n
+        case .candidates(let names): return names
+        }
+    }
+
+    var settingsLabel: String {
+        switch self {
+        case .systemDefault: return "系統預設"
+        case .index(let i): return "裝置 #\(i)"
+        case .name(let n): return n
+        case .candidates(let names): return names.first ?? "系統預設"
+        }
+    }
+}
+
 struct HotkeyConfig {
     let recordKey: String
     let recordModifier: String
@@ -133,23 +154,78 @@ enum ConfigLoader {
 
     /// Load bundled config.json, deep-merge config.local.json, validate, build typed config.
     static func load() throws -> AppConfig {
-        guard let baseURL = Bundle.main.url(forResource: "config", withExtension: "json") else {
-            throw ConfigError(message: "找不到 Bundle 內的 config.json")
-        }
-        let baseData = try Data(contentsOf: baseURL)
-        guard var merged = try JSONSerialization.jsonObject(with: baseData) as? [String: Any] else {
-            throw ConfigError(message: "config.json 不是合法的 JSON 物件")
-        }
-
-        // config.local.json overrides (deep merge).
-        if let localData = try? Data(contentsOf: AppPaths.configLocal),
-           let local = (try? JSONSerialization.jsonObject(with: localData)) as? [String: Any] {
-            merged = deepMerge(merged, local)
-            AppLog.info("🔧 已套用 config.local.json 覆蓋")
+        let bundled = try bundledJSON()
+        var merged = bundled
+        do {
+            if let local = try localJSON() {
+                merged = deepMerge(bundled, local)
+                AppLog.info("🔧 已套用 config.local.json 覆蓋")
+            }
+        } catch {
+            // Startup stays resilient: ignore a corrupt local file rather than
+            // refusing to launch. Settings writer will refuse to overwrite it.
+            AppLog.warn("⚠️ config.local.json 無法解析，已忽略並沿用內建設定：\(error)")
         }
 
         try validate(merged)
         return try build(from: merged)
+    }
+
+    static func bundledJSON() throws -> [String: Any] {
+        guard let baseURL = Bundle.main.url(forResource: "config", withExtension: "json") else {
+            throw ConfigError(message: "找不到 Bundle 內的 config.json")
+        }
+        return try jsonObject(at: baseURL, label: "config.json")
+    }
+
+    /// `nil` if the file is missing. Throws if it exists but is not a JSON object.
+    static func localJSON(at url: URL = AppPaths.configLocal) throws -> [String: Any]? {
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return try jsonObject(at: url, label: url.lastPathComponent)
+    }
+
+    static func jsonObject(at url: URL, label: String) throws -> [String: Any] {
+        let data = try Data(contentsOf: url)
+        let obj: Any
+        do {
+            obj = try JSONSerialization.jsonObject(with: data)
+        } catch {
+            throw ConfigError(message: "\(label) 不是合法 JSON")
+        }
+        guard let dict = obj as? [String: Any] else {
+            throw ConfigError(message: "\(label) 必須為 JSON 物件")
+        }
+        return dict
+    }
+
+    /// Effective config from bundled JSON + a local-override dictionary.
+    static func effectiveConfig(bundled: [String: Any], local: [String: Any]) throws -> AppConfig {
+        let merged = deepMerge(bundled, local)
+        try validate(merged)
+        return try build(from: merged)
+    }
+
+    /// Bundled+local `api_key` only (never env / Keychain). Used for source display.
+    static func rawAPIKey(account: String,
+                          bundled: [String: Any]? = nil,
+                          local: [String: Any]? = nil) -> String {
+        let base = bundled ?? (try? bundledJSON()) ?? [:]
+        let override = local ?? ((try? localJSON()) ?? [:])
+        let merged = deepMerge(base, override)
+        let api = merged["api"] as? [String: Any] ?? [:]
+        switch account {
+        case "XAI_API_KEY":
+            return ((api["grok"] as? [String: Any])?["api_key"] as? String) ?? ""
+        case "OPENAI_API_KEY":
+            return ((api["openai"] as? [String: Any])?["api_key"] as? String) ?? ""
+        case "GROQ_API_KEY":
+            return ((api["groq"] as? [String: Any])?["api_key"] as? String) ?? ""
+        case "CEREBRAS_API_KEY":
+            let llm = api["llm_correction"] as? [String: Any] ?? [:]
+            return ((llm["cerebras"] as? [String: Any])?["api_key"] as? String) ?? ""
+        default:
+            return ""
+        }
     }
 
     /// Deep merge: dict recurses; arrays/scalars replaced by override.
@@ -191,10 +267,11 @@ enum ConfigLoader {
         }
 
         let rec = config["recording"] as? [String: Any] ?? [:]
-        guard rec["sample_rate"] is Int else {
+        // JSONSerialization yields NSNumber; `is Int` is false, `as? Int` works.
+        guard rec["sample_rate"] as? Int != nil else {
             throw ConfigError(message: "config.recording.sample_rate 必須為整數")
         }
-        guard rec["channels"] is Int else {
+        guard rec["channels"] as? Int != nil else {
             throw ConfigError(message: "config.recording.channels 必須為整數")
         }
         let dev = rec["input_device"]
@@ -203,7 +280,7 @@ enum ConfigLoader {
         }
     }
 
-    private static func build(from c: [String: Any]) throws -> AppConfig {
+    static func build(from c: [String: Any]) throws -> AppConfig {
         // modes
         let rawModes = c["modes"] as? [[String: Any]] ?? []
         let modes = rawModes.compactMap { Mode(raw: $0) }
@@ -276,7 +353,7 @@ enum ConfigLoader {
 
         return AppConfig(
             modes: modes,
-            defaultModeId: c["default_mode_id"] as? String ?? "direct",
+            defaultModeId: c["default_mode_id"] as? String ?? "pro",
             api: apiConfig,
             recording: recording,
             hotkey: hotkey,

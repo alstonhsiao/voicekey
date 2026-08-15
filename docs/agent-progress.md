@@ -2,6 +2,31 @@
 
 ## Recent Progress
 
+### 2026-08-15 — Settings Window Phase 0–5 實作、測試、部署
+
+- 依 `plan-settings-window-20260815.md` 完成 Settings：選單「設定…」`⌘,`，五個 tab（一般 / 熱鍵 / 錄音 / API 金鑰 / LLM）。首次啟動預設專業模式（`config.json` `default_mode_id=pro`），之後以 `UserDefaults` 記住最後有效模式，Settings 可改回固定 default。
+- 套用路徑為 snapshot + `SettingsApplying`：`AppDelegate` 做候選 runtime 建立、原子 swap、busy 拒絕與 rollback。一般設定只寫 `config.local.json` override；API keys 只寫 Keychain；登入項目走 `SMAppService`。
+- 既有 App Icon / `setup-signing-cert.sh` 防換證變更保留未動；部署未重跑強制換證。leaf fingerprint 仍為 `5F66773A28125A5C2447847340B4D9BA76335A06`。
+- 驗證：72 tests green（1 live API skipped；原 34 未退化）。實機：`/Applications/VoiceKey.app` v0.1.0 build 51 啟動為專業模式、熱鍵註冊成功、麥克風就緒；Settings 可開、關後重開仍為單一視窗、五 tab 可切；寫入 `default_mode_id` 只產生 local override、不含 secret。
+- 開啟 Settings 初版曾因 tab view 尚未 load 就 `refresh()` IUO 崩潰（`HotkeyTabViewController`），已改為 `isViewLoaded` 後再刷新。
+- 未完成需真人：輔助使用仍未授權（與先前換 icon 同一張憑證，需使用者勾選後才能自動貼上）；錄音中改 runtime、熱鍵衝突、USB rescan、登入項目與系統設定對照。
+
+### 2026-08-15 — Settings Window 計畫修正並確認可施工
+
+- 使用者鎖定啟動模式行為：第一次使用 `pro` 專業模式；之後預設以 `UserDefaults` 記住最後有效模式，並可在 Settings 關閉記憶、改用固定 default。
+- 重寫根目錄 `plan-settings-window-20260815.md` 並標記 `READY_FOR_IMPLEMENTATION`：Settings 改採 snapshot + `SettingsApplying`，由 AppDelegate 做候選 runtime 建立、原子 swap 與 rollback，不直接修改 value-type config。
+- 修正原計畫的 stale-state 假設：input device、sample rate、API keys、LLM、vocab/keyterm limit 都需重建 provider/recorder/VoiceController；熱鍵加入註冊失敗 rollback，F1–F20 使用明確 keycode mapping。
+- 補齊 config.local 原子寫入/損壞保護、Keychain source/rollback、busy guard、登入項目狀態、權限入口，以及單元/實機驗證矩陣。
+- 本次僅修改計畫與進度文件，尚未實作 Settings 程式；新 session 應先保留目前 dirty worktree 中已完成的 App Icon／簽章腳本變更。
+
+### 2026-08-15 — VoiceKey 正式 App Icon + 簽章腳本防換證
+
+- 選定「銀藍鍵帽內，聲波轉為文字游標」概念並精修：移除細碎粒子與過量光暈，游標改為無襯線單一直線，保留小尺寸辨識度。
+- 新增 `Assets.xcassets/AppIcon.appiconset` 完整 macOS 16–1024px 圖示，`project.yml` 設定 `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon`；Release bundle 已產生 `AppIcon.icns` / `Assets.car`，Info.plist 正確帶入 `CFBundleIconFile` / `CFBundleIconName`。
+- 驗證：34 tests 通過（1 live API test skipped）；Release universal build 51 成功；`VoiceKey Self-Signed` 簽章與 strict verify 通過；已安裝並啟動 `/Applications/VoiceKey.app`。
+- 安裝時發現舊版與目前同名憑證的 leaf fingerprint 不同，故 TCC 正確要求輔助使用重新授權一次。根因是舊 `setup-signing-cert.sh` 每次重跑都刪除並重建憑證；現已改為預設重用唯一有效 identity，僅在 `VOICEKEY_RECREATE_SIGNING_CERT=1` 時明確換證並警告會掉授權。
+- 最終安裝版與 Keychain 已固定為同一 leaf fingerprint `5F6677…`，App 正常啟動、麥克風與熱鍵就緒；待使用者在「隱私權與安全性 → 輔助使用」勾選帶新藍色 icon 的 VoiceKey，之後重啟驗證自動貼上。
+
 ### 2026-08-15 — 修復「辨識中」永久卡死（start/stop serial queue 死結）
 
 - **症狀**：本機 VoiceKey 卡在「辨識中」，log 停在「🔴 錄音中...」後缺少「🎙️ 硬體格式」，之後每次按熱鍵都印「⚠️ 辨識進行中，請稍後再錄音」。程式仍佔 34% CPU 空轉，只能手動重啟。
