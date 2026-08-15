@@ -8,3 +8,4 @@
 | `planxcode060614.md` | 2026-06-14 | `voicekey/`（VoiceKey 原生 App） |
 | `approach-3-windows.md` | 2026-07-22 | 早期 Windows `.exe` 原型；原始碼已移除，Git 歷史保留 |
 | `approach-6-macos.md` | 2026-07-22 | 前代 macOS Python 實作；原始碼已移除，Git 歷史保留 |
+| `plan-settings-window-20260815.md` | 2026-08-15 | VoiceKey Settings；核心實作完成，部分真人驗證延後，待辦見 `todo.md` |

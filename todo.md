@@ -40,10 +40,10 @@
 - [ ] **（選配）API 降級** — 暫時錯 key，確認不崩潰、降級回 raw STT
 - [ ] **（選配）重開機後** — 確認是否要手動啟動；Settings「登入時自動啟動」已可用，待真人在系統「登入項目」確認 `.enabled` / `.requiresApproval`
 
-- [x] **Settings 視窗（2026-08-15）** — 選單「設定…」`⌘,`；五 tab；首次 pro、之後記住 last；config.local 原子寫入；Keychain；runtime swap + 熱鍵 rollback
+- [x] **Settings 視窗（2026-08-15）** — 選單「設定…」`⌘,`；五 tab；首次 pro、之後記住 last；config.local 原子寫入；Keychain；runtime swap + 熱鍵 rollback（核心實作已完成；施工計畫已封存，部分真人驗證延後）
   - [x] 單元測試 72（1 live API skipped）
   - [x] `/Applications/VoiceKey.app` 已更新（v0.1.0 build 51，self-signed leaf `5F6677…` 未換證）
-  - [ ] 真人：輔助使用仍未勾選（換 icon 後待勾選帶藍色 icon 的 VoiceKey）後驗證自動貼上
+  - [x] 真人：輔助使用已授權；`Ctrl+F1` 錄音→STT→LLM→自動貼上通過（2026-08-15）
   - [ ] 真人：錄音中改 runtime 設定應拒絕；熱鍵衝突時舊熱鍵仍可用
   - [ ] 真人：USB 重新掃描後下次錄音用新裝置
   - [ ] 真人：登入項目 register / 系統設定一致

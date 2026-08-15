@@ -2,9 +2,16 @@
 
 ## Recent Progress
 
+### 2026-08-15 — Settings Window 計畫封存
+
+- Settings 核心功能已完成：72 個單元測試通過（1 個 live API skipped），`/Applications/VoiceKey.app` 已部署。
+- 使用者已真人確認 `Ctrl+F1` 錄音 → Grok STT → Cerebras LLM → 自動貼上成功；先前阻擋貼上的輔助使用權限已補授權。
+- 熱鍵 rollback、錄音中套用拒絕、USB rescan、登入項目、冷啟動等真人驗證依使用者決定延後，仍保留在 `todo.md`。
+- `plan-settings-window-20260815.md` 已移至 `docs/archive/`，並在封存索引登錄；不宣稱完整人工驗收全部通過。
+
 ### 2026-08-15 — Settings Window Phase 0–5 實作、測試、部署
 
-- 依 `plan-settings-window-20260815.md` 完成 Settings：選單「設定…」`⌘,`，五個 tab（一般 / 熱鍵 / 錄音 / API 金鑰 / LLM）。首次啟動預設專業模式（`config.json` `default_mode_id=pro`），之後以 `UserDefaults` 記住最後有效模式，Settings 可改回固定 default。
+- 依 `docs/archive/plan-settings-window-20260815.md` 完成 Settings：選單「設定…」`⌘,`，五個 tab（一般 / 熱鍵 / 錄音 / API 金鑰 / LLM）。首次啟動預設專業模式（`config.json` `default_mode_id=pro`），之後以 `UserDefaults` 記住最後有效模式，Settings 可改回固定 default。
 - 套用路徑為 snapshot + `SettingsApplying`：`AppDelegate` 做候選 runtime 建立、原子 swap、busy 拒絕與 rollback。一般設定只寫 `config.local.json` override；API keys 只寫 Keychain；登入項目走 `SMAppService`。
 - 既有 App Icon / `setup-signing-cert.sh` 防換證變更保留未動；部署未重跑強制換證。leaf fingerprint 仍為 `5F66773A28125A5C2447847340B4D9BA76335A06`。
 - 驗證：72 tests green（1 live API skipped；原 34 未退化）。實機：`/Applications/VoiceKey.app` v0.1.0 build 51 啟動為專業模式、熱鍵註冊成功、麥克風就緒；Settings 可開、關後重開仍為單一視窗、五 tab 可切；寫入 `default_mode_id` 只產生 local override、不含 secret。
@@ -14,7 +21,7 @@
 ### 2026-08-15 — Settings Window 計畫修正並確認可施工
 
 - 使用者鎖定啟動模式行為：第一次使用 `pro` 專業模式；之後預設以 `UserDefaults` 記住最後有效模式，並可在 Settings 關閉記憶、改用固定 default。
-- 重寫根目錄 `plan-settings-window-20260815.md` 並標記 `READY_FOR_IMPLEMENTATION`：Settings 改採 snapshot + `SettingsApplying`，由 AppDelegate 做候選 runtime 建立、原子 swap 與 rollback，不直接修改 value-type config。
+- 重寫設定計畫並標記 `READY_FOR_IMPLEMENTATION`（後於實作完成後封存至 `docs/archive/plan-settings-window-20260815.md`）：Settings 改採 snapshot + `SettingsApplying`，由 AppDelegate 做候選 runtime 建立、原子 swap 與 rollback，不直接修改 value-type config。
 - 修正原計畫的 stale-state 假設：input device、sample rate、API keys、LLM、vocab/keyterm limit 都需重建 provider/recorder/VoiceController；熱鍵加入註冊失敗 rollback，F1–F20 使用明確 keycode mapping。
 - 補齊 config.local 原子寫入/損壞保護、Keychain source/rollback、busy guard、登入項目狀態、權限入口，以及單元/實機驗證矩陣。
 - 本次僅修改計畫與進度文件，尚未實作 Settings 程式；新 session 應先保留目前 dirty worktree 中已完成的 App Icon／簽章腳本變更。

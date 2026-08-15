@@ -1,6 +1,7 @@
 # VoiceKey Settings Window 實作計畫
 
-> **狀態**：`IMPLEMENTED`（2026-08-15 Phase 0–5 已實作、測試並部署到 `/Applications`）
+> **狀態**：`ARCHIVED`（2026-08-15 核心實作、單元測試、部署與 Ctrl+F1 真人端到端流程已完成）
+> **封存註記**：熱鍵 rollback、busy guard、USB rescan、登入項目、冷啟動等延後真人驗證，保留於 `todo.md`；本計畫已封存，但不宣稱完整人工驗收全部通過。
 > **本次鎖定決策**：第一次啟動使用「專業模式」；之後預設記住最後使用模式。
 > **前置條件**：start/stop 死結修復已完成；正式 App Icon 已完成；目前基線為 34 tests green。
 > **預估規模**：約 1,000–1,300 行 Swift；12 個新檔案，加上既有程式、設定、測試與文件修改。
