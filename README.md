@@ -34,7 +34,7 @@ cd voicekey
 bash setup-signing-cert.sh   # 建立 "VoiceKey Self-Signed"
 ```
 
-固定 identity 後，rebuild **不會**每次掉「輔助使用」授權（ad-hoc 會掉）。詳見 [GOTCHAS-xcode.md](voicekey/GOTCHAS-xcode.md)。
+固定 identity 後，rebuild **不會**每次掉「輔助使用」授權（ad-hoc 會掉）。詳見 [TROUBLESHOOTING-xcode.md](voicekey/TROUBLESHOOTING-xcode.md)。
 
 ### 建置 / 測試 / 安裝
 
@@ -160,7 +160,7 @@ Ctrl+F1
 | [docs/agent-progress.md](docs/agent-progress.md) | 近期進度 |
 | [todo.md](todo.md) | 待辦 |
 | [voicekey/INDEX.md](voicekey/INDEX.md) | VoiceKey 建置與安裝 |
-| [voicekey/GOTCHAS-xcode.md](voicekey/GOTCHAS-xcode.md) | 實機踩坑 |
+| [voicekey/TROUBLESHOOTING-xcode.md](voicekey/TROUBLESHOOTING-xcode.md) | 實機踩坑 |
 
 ---
 

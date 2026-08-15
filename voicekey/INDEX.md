@@ -8,7 +8,7 @@
 | 檔案 | 用途 |
 |---|---|
 | `INDEX.md`（本檔） | 建置、安裝、使用、設定 |
-| `GOTCHAS-xcode.md` | 錄音/簽章/build 踩坑與確認解法 |
+| `TROUBLESHOOTING-xcode.md` | 錄音/簽章/build 踩坑與確認解法 |
 | `ISSUES-xcode.md` | 待真人/跨機驗證項 |
 | `dist/INDEX.md` | 分發產物（zip/dmg/安裝說明） |
 | `build.sh` / `test.sh` / `package.sh` | 建置、測試、打包腳本 |
@@ -48,7 +48,7 @@ bash setup-signing-cert.sh   # 建 self-signed code-signing 憑證，匯入 logi
 macOS「輔助使用」授權綁的是 path+cdhash → **每次重編都掉授權**，文字無法自動貼上。
 改用固定的 self-signed 憑證後，TCC 改綁憑證 identity，rebuild 不再掉授權（只需授權一次）。
 `project.yml` 已設 `CODE_SIGN_IDENTITY: "VoiceKey Self-Signed"`。
-踩過的坑與細節見 `GOTCHAS-xcode.md`。
+踩過的坑與細節見 `TROUBLESHOOTING-xcode.md`。
 
 > 換簽章 identity（含首次從 ad-hoc 切過來）後，仍需到「輔助使用」**重新授權一次**：
 > 移除舊的白紙殘骸 → 啟動新 app → 允許 → 重啟生效。之後永久有效。
@@ -138,4 +138,4 @@ VoiceKey 取代的前代 Python 實作已移除；保留的設計決策、踩坑
 ## 已知待辦 / 踩坑
 
 - 需真人操作或跨機驗證的項目 → `ISSUES-xcode.md`
-- 實機除錯踩過的坑與**確認解法**（macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章、debug dylib crash）→ `GOTCHAS-xcode.md`
+- 實機除錯踩過的坑與**確認解法**（macOS 26 AVAudioEngine 錄音三雷、self-signed 簽章、debug dylib crash）→ `TROUBLESHOOTING-xcode.md`

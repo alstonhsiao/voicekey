@@ -34,7 +34,7 @@
 | TODO | `todo.md` | 中/低優先未完成項。 |
 | VoiceKey 安裝/建置 | `voicekey/INDEX.md` | 簽章、build、本機安裝、分發入口；新 session 開工必讀。 |
 | 跨機安裝 | `voicekey/dist/INSTALL-zh-TW.md` | 目標 Mac 無需 Xcode 的安裝步驟。 |
-| Xcode 踩坑 | `voicekey/GOTCHAS-xcode.md` | 錄音/簽章/build/選單列確認解法。動到這些前必讀。 |
+| Xcode 踩坑 | `voicekey/TROUBLESHOOTING-xcode.md` | 錄音/簽章/build/選單列確認解法。動到這些前必讀。 |
 | 待真人/跨機 | `voicekey/ISSUES-xcode.md` | 需真人操作或跨機驗證項。 |
 | Archived Plans | `docs/archive/INDEX.md` | 已完工施工藍圖（歷史參考）。 |
 

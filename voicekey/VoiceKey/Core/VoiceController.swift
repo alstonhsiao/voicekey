@@ -14,7 +14,12 @@ final class VoiceController {
     private let llm: LLMCorrectionProvider?
     private let vocab: VocabStores
     private let sessionLogger: SessionLogger
-    private let recordingQueue = DispatchQueue(label: "com.alston.VoiceKey.recording")
+    // Separate serial queues so a stuck start() cannot block stop() (and vice
+    // versa). timerQueue drives timeout fallbacks that force-recover state if
+    // a CoreAudio HAL call hangs (TROUBLESHOOTING 1d/1e).
+    private let startQueue = DispatchQueue(label: "com.alston.VoiceKey.start")
+    private let stopQueue = DispatchQueue(label: "com.alston.VoiceKey.stop")
+    private let timerQueue = DispatchQueue(label: "com.alston.VoiceKey.timer")
 
     private var isRecording = false
     private var isProcessing = false   // blocks new recording while transcribing
@@ -72,7 +77,7 @@ final class VoiceController {
         vocab.maybeReloadAll()   // hot-reload all three layers (matches approach-6)
         setState(.recording)
         AppLog.info("🔴 錄音中... [\(modeManager.current.display)]（再按一次停止）")
-        recordingQueue.async { [weak self] in
+        startQueue.async { [weak self] in
             guard let self else { return }
             let ok = self.recorder.start()
             guard !ok else { return }
@@ -109,7 +114,11 @@ final class VoiceController {
             let (maybeURL, audioSec) = await stopRecorder()
             guard let url = maybeURL else {
                 setState(.idle)
-                AppLog.warn("⚠️ 錄音時間太短，已忽略")
+                if audioSec > 0 {
+                    AppLog.warn("⚠️ 錄音時間太短，已忽略")
+                } else {
+                    AppLog.warn("⚠️ 停止錄音逾時，已取消此次辨識")
+                }
                 return
             }
             defer { try? FileManager.default.removeItem(at: url) }
@@ -199,12 +208,29 @@ final class VoiceController {
 
     private func stopRecorder() async -> (URL?, Double) {
         await withCheckedContinuation { continuation in
-            recordingQueue.async { [weak self] in
+            // Use a dedicated queue separate from startQueue so a stuck
+            // start() cannot block stop() on the same serial queue.
+            let resumed = NSLock()
+            var didResume = false
+            func resumeOnce(_ value: (URL?, Double)) {
+                resumed.lock()
+                if didResume { resumed.unlock(); return }
+                didResume = true
+                resumed.unlock()
+                continuation.resume(returning: value)
+            }
+            stopQueue.async { [weak self] in
                 guard let self else {
-                    continuation.resume(returning: (nil, 0.0))
+                    resumeOnce((nil, 0.0))
                     return
                 }
-                continuation.resume(returning: self.recorder.stop())
+                resumeOnce(self.recorder.stop())
+            }
+            // Safety net: if recorder.stop() hangs (CoreAudio HAL), resume
+            // after 5s so the pipeline can recover instead of staying stuck
+            // in "辨識中" forever (TROUBLESHOOTING 1d/1e).
+            timerQueue.asyncAfter(deadline: .now() + 5) {
+                resumeOnce((nil, 0.0))
             }
         }
     }

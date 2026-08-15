@@ -1,7 +1,7 @@
 # TODO — voicekey 專案
 
 > 主力：**VoiceKey**（`voicekey/`）。
-> 詳細真人/跨機項見 `voicekey/ISSUES-xcode.md`；踩坑見 `voicekey/GOTCHAS-xcode.md`。
+> 詳細真人/跨機項見 `voicekey/ISSUES-xcode.md`；踩坑見 `voicekey/TROUBLESHOOTING-xcode.md`。
 
 ---
 

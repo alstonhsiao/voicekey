@@ -2,6 +2,14 @@
 
 ## Recent Progress
 
+### 2026-08-15 — 修復「辨識中」永久卡死（start/stop serial queue 死結）
+
+- **症狀**：本機 VoiceKey 卡在「辨識中」，log 停在「🔴 錄音中...」後缺少「🎙️ 硬體格式」，之後每次按熱鍵都印「⚠️ 辨識進行中，請稍後再錄音」。程式仍佔 34% CPU 空轉，只能手動重啟。
+- **根因**：`AudioRecorder.start()` 卡在 CoreAudio HAL 查詢（TROUBLESHOOTING 1d 已知）不返回；TROUBLESHOOTING 1d 的修復把 `start()` 和 `stop()` 放在同一個 serial `recordingQueue`，start 卡住時 block 佔住 queue，`stop()` 排不上去 → `isProcessing` 永遠 true → 死結。
+- **修復**（`VoiceController.swift`）：`start()` / `stop()` 改用各自獨立的 serial queue（`startQueue` / `stopQueue`），互不阻塞；新增 `timerQueue` 給 `stopRecorder()` 加 5 秒超時保護，卡住時 continuation 超時 resume `(nil, 0.0)`，pipeline 走「停止錄音逾時」路徑復原為 idle。`resumeOnce` 用 lock 保證 continuation 只 resume 一次。
+- **驗證**：34 單元測試全綠（1 skipped）；Debug build 成功；重新簽章安裝到 `/Applications`，啟動 log 正常，麥克風與輔助使用授權就緒。
+- **文件**：`voicekey/TROUBLESHOOTING-xcode.md` 新增 1e 條目記錄此坑與解法。
+
 ### 2026-07-22 — 移除早期 Windows `.exe` 方案
 
 - 唯讀盤點確認 `approach-3-python-exe/` 沒有被 VoiceKey、建置腳本或部署流程依賴；僅有治理與歷史文件引用。
@@ -69,7 +77,7 @@
 - `plan20260614.md`、`planxcode060614.md` 移至 `docs/archive/`（頂部加歸檔狀態說明）。
 - 新增 `docs/archive/INDEX.md` 索引。
 - 更新引用：`AGENTS.md`、`README.md`、`voicekey/INDEX.md`、`docs/agent-context.md`、`docs/agent-progress.md`、`approach-6-whisper-macos/_voice_vocab.py`。
-- 新 session 開工改讀 `voicekey/INDEX.md` + `GOTCHAS-xcode.md`，不再指向根目錄 plan 檔。
+- 新 session 開工改讀 `voicekey/INDEX.md` + `TROUBLESHOOTING-xcode.md`，不再指向根目錄 plan 檔。
 
 ### 2026-07-11 — 改名：approach-7 / WhisperVoice → VoiceKey
 
@@ -149,7 +157,7 @@
 #### 變更
 - `AudioRecorder.start()` 改為回傳 Bool；啟動失敗會復原 `isRecording=false`。
 - `VoiceController` 新增 `recordingQueue`，把 `recorder.start()` 與 `recorder.stop()` 放到同一個 serial queue，避免 CoreAudio 同步查詢卡住主執行緒。
-- `GOTCHAS-xcode.md` 新增 1d：`AVAudioEngine.inputNode/inputFormat` 偶發卡住的症狀、根因與解法。
+- `TROUBLESHOOTING-xcode.md` 新增 1d：`AVAudioEngine.inputNode/inputFormat` 偶發卡住的症狀、根因與解法。
 
 #### 處置與驗證
 - 先以 `kill -TERM 83966` 正常結束卡住的舊 app。

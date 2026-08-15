@@ -18,7 +18,7 @@
 | `voicekey/` | 主力方案（VoiceKey 原生 App） |
 | `voicekey/INDEX.md` | 建置、簽章、安裝（新 session 開工必讀） |
 | `docs/INDEX.md` | Agent 文件路由索引 |
-| `voicekey/GOTCHAS-xcode.md` | 錄音/簽章/選單列踩坑 |
+| `voicekey/TROUBLESHOOTING-xcode.md` | 錄音/簽章/選單列踩坑 |
 | `voicekey/ISSUES-xcode.md` | 待真人/跨機項 |
 | `scripts/INDEX.md` | 開發驗證腳本索引 |
 | `docs/archive/INDEX.md` | 已完工歷史施工藍圖索引 |

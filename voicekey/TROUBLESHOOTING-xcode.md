@@ -1,4 +1,4 @@
-# GOTCHAS-xcode.md
+# TROUBLESHOOTING-xcode.md
 
 > **改名說明（2026-07-11）**：本 app 原名 WhisperVoice（目錄 approach-7-xcode）。因已不使用 Whisper（主力為 Grok STT），改名 VoiceKey。歷史文件與 git log 中的 WhisperVoice 均指本 app。bundle id 已改為 com.alston.VoiceKey，舊資料（App Support 詞彙檔、keychain、session DB）首次啟動自動遷移。
 
@@ -32,6 +32,11 @@
 - **症狀**：log 最後停在「🔴 錄音中...」，沒有「錄音裝置」或「硬體格式」；選單列不能點、也不能用選單結束；`sample <pid>` 顯示主執行緒卡在 `VoiceController.startRecording()` → `AudioRecorder.start()` → `AVAudioEngine.inputNode` / CoreAudio HAL 查詢。
 - **根因**：錄音啟動原本在熱鍵 callback 的主執行緒同步執行；一旦 CoreAudio 裝置查詢卡住，AppKit event loop 也被堵住。
 - **解法**：`VoiceController` 增加 `recordingQueue`，把 `AudioRecorder.start()` / `stop()` 放到同一個 serial queue；`AudioRecorder.start()` 改回傳 Bool，啟動失敗時復原 `isRecording`。這不能強制取消 CoreAudio 內部卡住，但可避免 UI/選單/結束程式一起失效。
+
+### 1e. start() 卡住 → stop() 也被堵死（同一 serial queue 死結）→ 永久卡在「辨識中」
+- **症狀**：log 停在「🔴 錄音中...」後**缺少「🎙️ 硬體格式」**（`start()` 卡在 CoreAudio HAL 查詢）。之後每次按熱鍵都印「⚠️ 辨識進行中，請稍後再錄音」，app 永久無法恢復。程式仍佔高 CPU（空轉），只能手動重啟。
+- **根因**：1d 的修復把 `start()` 和 `stop()` 都放到**同一個 `recordingQueue`**（serial queue）。`start()` 卡住不返回時 block 佔住 queue；用戶按停止 → `stopRecorder()` 把 `recorder.stop()` 排到同一 queue → **永遠排不到執行** → `isProcessing` 永遠 true → 之後所有熱鍵都被擋。1d 解了 UI 卡死，但留下 start/stop 互相阻塞的死結。
+- **解法**（`VoiceController.swift`）：`start()` 和 `stop()` 改用**各自獨立的 serial queue**（`startQueue` / `stopQueue`），互不阻塞；新增 `timerQueue` 給 `stopRecorder()` 加 5 秒超時保護——`stop()` 卡住時 continuation 超時 resume `(nil, 0.0)`，pipeline 走「停止錄音逾時」路徑復原為 idle，不再永久卡死。`resumeOnce` 用 lock 保證 continuation 只 resume 一次。
 
 ---
 
