@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsApplying {
                                  voiceController: VoiceController)?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        let startupStarted = DispatchTime.now()
         // Under XCTest, skip full app setup (no hotkeys / mic / config side effects).
         if NSClassFromString("XCTestCase") != nil { return }
 
@@ -83,6 +84,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsApplying {
         installCoordinator()
         requestMicrophoneAccess()
         checkAccessibility()
+        let startupMs = Int((DispatchTime.now().uptimeNanoseconds
+                             - startupStarted.uptimeNanoseconds) / 1_000_000)
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+        AppLog.info("⏱  startup setup: \(startupMs)ms | version: \(version) build \(build)")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -294,8 +300,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, SettingsApplying {
         let devices = CoreAudioDevices.allInputDevices()
         let list = devices.map { "\($0.id):\($0.name)" }.joined(separator: " | ")
         AppLog.info("🎙️ 可用輸入裝置：\(list.isEmpty ? "(無)" : list)")
-        if let id = CoreAudioDevices.find(cfg.recording.inputDevice), let name = CoreAudioDevices.deviceName(id) {
-            AppLog.info("🎙️ 解析錄音裝置：\(id):\(name)")
+        if let device = CoreAudioDevices.resolve(cfg.recording.inputDevice, in: devices) {
+            AppLog.info("🎙️ 解析錄音裝置：\(device.id):\(device.name)")
         } else {
             AppLog.info("🎙️ 解析錄音裝置：系統預設輸入")
         }

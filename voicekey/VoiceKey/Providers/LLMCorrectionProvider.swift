@@ -10,6 +10,8 @@ protocol LLMCorrectionProvider: AnyObject {
 
 /// Cerebras fast LLM correction (Llama / Qwen / gpt-oss).
 final class CerebrasProvider: LLMCorrectionProvider {
+    static let requestTimeout: TimeInterval = 8
+
     let name = "cerebras"
     private(set) var lastFinishReason: String?
     private let cfg: CerebrasConfig
@@ -23,7 +25,7 @@ final class CerebrasProvider: LLMCorrectionProvider {
     func makeRequest(text: String, systemPrompt: String) -> URLRequest {
         var req = URLRequest(url: URL(string: cfg.endpoint)!)
         req.httpMethod = "POST"
-        req.timeoutInterval = 15
+        req.timeoutInterval = Self.requestTimeout
         req.setValue("Bearer \(cfg.apiKey)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let body: [String: Any] = [

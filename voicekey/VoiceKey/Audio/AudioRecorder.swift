@@ -44,13 +44,6 @@ final class AudioRecorder {
                                           interleaved: false)!
     }
 
-    func currentDeviceLabel() -> String {
-        if let id = CoreAudioDevices.find(deviceSpec), let name = CoreAudioDevices.deviceName(id) {
-            return "\(id):\(name)"
-        }
-        return "system default input"
-    }
-
     @discardableResult
     func start() -> Bool {
         bufferSamples = 0
@@ -63,17 +56,19 @@ final class AudioRecorder {
         // when reusing a stopped AVAudioEngine (engine state not fully reset after stop()).
         engine = AVAudioEngine()
         let input = engine.inputNode
+        let resolvedDevice = CoreAudioDevices.resolve(deviceSpec)
 
         // Accessing inputNode.audioUnit before prepare() lazily allocates AUHAL,
         // allowing device selection without calling prepare() explicitly.
-        if let devID = CoreAudioDevices.find(deviceSpec), let au = input.audioUnit {
-            var mutableID = devID
+        if let device = resolvedDevice, let au = input.audioUnit {
+            var mutableID = device.id
             let st = AudioUnitSetProperty(au, kAudioOutputUnitProperty_CurrentDevice,
                                           kAudioUnitScope_Global, 0, &mutableID,
                                           UInt32(MemoryLayout<AudioDeviceID>.size))
             if st != noErr { AppLog.warn("⚠️ 設定錄音裝置失敗 status=\(st)，改用系統預設") }
         }
-        AppLog.info("🎙️ 錄音裝置：\(currentDeviceLabel())")
+        let deviceLabel = resolvedDevice.map { "\($0.id):\($0.name)" } ?? "system default input"
+        AppLog.info("🎙️ 錄音裝置：\(deviceLabel)")
 
         // CRITICAL: after changing the device via AudioUnitSetProperty, inputNode.outputFormat
         // stays stale (it reflects the device present at engine-creation time). format:nil would

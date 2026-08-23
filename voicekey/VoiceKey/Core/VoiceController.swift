@@ -14,6 +14,8 @@ final class VoiceController {
     private let llm: LLMCorrectionProvider?
     private let vocab: VocabStores
     private let sessionLogger: SessionLogger
+    private let appVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    private let appBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String
     // Separate serial queues so a stuck start() cannot block stop() (and vice
     // versa). timerQueue drives timeout fallbacks that force-recover state if
     // a CoreAudio HAL call hangs (TROUBLESHOOTING 1d/1e).
@@ -124,7 +126,10 @@ final class VoiceController {
                 isProcessing = false
                 lock.unlock()
             }
+            let pipelineStarted = DispatchTime.now()
+            let stopStarted = DispatchTime.now()
             let (maybeURL, audioSec) = await stopRecorder()
+            let stopMs = Self.elapsedMs(since: stopStarted)
             guard let url = maybeURL else {
                 setState(.idle)
                 if audioSec > 0 {
@@ -135,41 +140,52 @@ final class VoiceController {
                 return
             }
             defer { try? FileManager.default.removeItem(at: url) }
+            let audioBytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
 
             AppLog.info("🔄 辨識中... [\(mode.display)]")
-            let t0 = Date()
 
             // 1. STT
+            let sttStarted = DispatchTime.now()
             let raw: String
             do {
                 raw = try await transcribe.transcribe(wavURL: url, mode: mode)
             } catch let e as STTHTTPError {
+                let sttMs = Self.elapsedMs(since: sttStarted)
                 AppLog.error("❌ \(Self.httpMessage(e.status))")
                 sessionLogger.log(SessionRecord(
-                    timestamp: SessionLogger.now(), modeId: mode.id, modeName: mode.name,
-                    provider: transcribe.name, audioSec: (audioSec * 100).rounded() / 100,
+                    timestamp: SessionLogger.now(), appVersion: appVersion, appBuild: appBuild,
+                    modeId: mode.id, modeName: mode.name, provider: transcribe.name,
+                    audioSec: (audioSec * 100).rounded() / 100, audioBytes: audioBytes,
+                    stopMs: stopMs, sttMs: sttMs,
+                    pipelineMs: Self.elapsedMs(since: pipelineStarted),
                     errorType: "http_error", errorDetail: "HTTP \(e.status)"))
                 setState(.error)
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 setState(.idle)
                 return
             } catch {
+                let sttMs = Self.elapsedMs(since: sttStarted)
                 let isTimeout = (error as? URLError)?.code == .timedOut
                 AppLog.error(isTimeout ? "❌ 網路逾時" : "❌ 發生錯誤：\(error)")
                 sessionLogger.log(SessionRecord(
-                    timestamp: SessionLogger.now(), modeId: mode.id, modeName: mode.name,
-                    provider: transcribe.name, audioSec: (audioSec * 100).rounded() / 100,
+                    timestamp: SessionLogger.now(), appVersion: appVersion, appBuild: appBuild,
+                    modeId: mode.id, modeName: mode.name, provider: transcribe.name,
+                    audioSec: (audioSec * 100).rounded() / 100, audioBytes: audioBytes,
+                    stopMs: stopMs, sttMs: sttMs,
+                    pipelineMs: Self.elapsedMs(since: pipelineStarted),
                     errorType: isTimeout ? "timeout" : "unknown", errorDetail: "\(error)"))
                 setState(.error)
                 try? await Task.sleep(nanoseconds: 2_000_000_000)
                 setState(.idle)
                 return
             }
-            let sttMs = Int(Date().timeIntervalSince(t0) * 1000)
+            let sttMs = Self.elapsedMs(since: sttStarted)
             AppLog.debug("🪵 raw STT: \(raw)")
 
             // 2. regex fallback corrections
+            let regexStarted = DispatchTime.now()
             let corrected = RegexCorrections.apply(raw, rules: mode.regexRules)
+            let regexMs = Self.elapsedMs(since: regexStarted)
             guard !corrected.isEmpty else {
                 AppLog.warn("⚠️ 辨識結果為空")
                 setState(.idle)
@@ -178,7 +194,7 @@ final class VoiceController {
             AppLog.debug("🪵 regex corrected: \(corrected)")
 
             // 3. LLM correction (layer2 injection; degrade on failure)
-            let tLLM = Date()
+            let llmStarted = DispatchTime.now()
             let usedLLM = (llm != nil && !mode.llmPrompt.isEmpty)
             var finalText = corrected
             if let llm, usedLLM {
@@ -188,10 +204,11 @@ final class VoiceController {
             } else {
                 AppLog.debug("🪵 LLM corrected: <skipped>")
             }
-            let llmMs = Int(Date().timeIntervalSince(tLLM) * 1000)
+            let llmMs = Self.elapsedMs(since: llmStarted)
             let llmOut: String? = usedLLM ? finalText : nil
 
             // 3b. Layer-3 user vocab pinyin fuzzy (degrade to original on any issue)
+            let vocabStarted = DispatchTime.now()
             var vocabOut: String?
             if let layer3 = vocab.layer3 {
                 let applied = layer3.apply(finalText)
@@ -201,20 +218,30 @@ final class VoiceController {
                 vocabOut = applied
                 finalText = applied
             }
+            let vocabMs = Self.elapsedMs(since: vocabStarted)
 
             // 4. paste into the target app
+            let pasteStarted = DispatchTime.now()
             let (method, ok) = await Paste.pasteText(finalText, targetApp: targetApp)
-            AppLog.info("⏱  STT: \(sttMs)ms | LLM: \(llmMs)ms | audio: \(String(format: "%.2f", audioSec))s")
+            let pasteMs = Self.elapsedMs(since: pasteStarted)
+            let pipelineMs = Self.elapsedMs(since: pipelineStarted)
+            AppLog.info("⏱  stop: \(stopMs)ms | STT: \(sttMs)ms | regex: \(regexMs)ms | "
+                        + "LLM: \(llmMs)ms | vocab: \(vocabMs)ms | paste: \(pasteMs)ms | "
+                        + "pipeline: \(pipelineMs)ms | audio: \(String(format: "%.2f", audioSec))s")
             AppLog.info("✅ 已貼上（\(method)，ok=\(ok)）：\(finalText)")
             setState(.idle)
 
             sessionLogger.log(SessionRecord(
                 timestamp: SessionLogger.now(),
+                appVersion: appVersion, appBuild: appBuild,
                 modeId: mode.id, modeName: mode.name, provider: transcribe.name,
                 audioSec: (audioSec * 100).rounded() / 100,
-                rawStt: raw, regexOut: corrected, llmOut: llmOut, vocabOut: vocabOut,
+                audioBytes: audioBytes, stopMs: stopMs,
+                rawStt: raw, regexOut: corrected, regexMs: regexMs,
+                llmOut: llmOut, vocabOut: vocabOut, vocabMs: vocabMs,
                 finalText: finalText, sttMs: sttMs, llmMs: usedLLM ? llmMs : nil,
                 pasteMethod: method, pasteOk: ok ? 1 : 0,
+                pasteMs: pasteMs, pipelineMs: pipelineMs,
                 llmFinishReason: llm?.lastFinishReason))
         }
     }
@@ -256,5 +283,10 @@ final class VoiceController {
         case 429: return "請求過於頻繁"
         default:  return "API 錯誤 HTTP \(status)"
         }
+    }
+
+    private static func elapsedMs(since start: DispatchTime) -> Int {
+        let nanos = DispatchTime.now().uptimeNanoseconds - start.uptimeNanoseconds
+        return Int(nanos / 1_000_000)
     }
 }

@@ -33,21 +33,29 @@ enum Paste {
     /// Copy text and synthesize Cmd+V into the target app.
     /// Returns (method, ok). Falls back to clipboard-only without Accessibility.
     static func pasteText(_ text: String, targetApp: NSRunningApplication?) async -> (method: String, ok: Bool) {
-        await MainActor.run {
+        let activationSettleNs = await MainActor.run {
             let pb = NSPasteboard.general
             pb.clearContents()
             pb.setString(text, forType: .string)
             if let app = targetApp {
-                if #available(macOS 14.0, *) {
-                    app.activate()
-                } else {
-                    app.activate(options: [])
+                let wasActive = app.isActive
+                if !wasActive {
+                    if #available(macOS 14.0, *) {
+                        app.activate()
+                    } else {
+                        app.activate(options: [])
+                    }
                 }
+                return activationSettleNanoseconds(targetWasActive: wasActive)
             }
+            return UInt64(0)
         }
 
-        // Brief settle so the activated app is frontmost before the keystroke.
-        try? await Task.sleep(nanoseconds: 120_000_000)
+        // The target normally stays frontmost while a menu-bar hotkey is in use.
+        // Only pay the activation settle cost when focus actually had to change.
+        if activationSettleNs > 0 {
+            try? await Task.sleep(nanoseconds: activationSettleNs)
+        }
 
         guard isAccessibilityTrusted() else {
             AppLog.warn("⚠️ 未取得「輔助使用」授權，文字已存剪貼簿，請手動 Cmd+V")
@@ -57,6 +65,10 @@ enum Paste {
 
         let ok = await MainActor.run { synthesizeCmdV() }
         return ok ? ("cgevent", true) : ("clipboard_only", false)
+    }
+
+    static func activationSettleNanoseconds(targetWasActive: Bool) -> UInt64 {
+        targetWasActive ? 0 : 120_000_000
     }
 
     private static func synthesizeCmdV() -> Bool {

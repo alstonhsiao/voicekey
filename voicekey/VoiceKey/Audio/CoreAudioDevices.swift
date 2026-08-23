@@ -67,19 +67,26 @@ enum CoreAudioDevices {
 
     /// Resolve a config InputDeviceSpec to an AudioDeviceID. nil = system default.
     static func find(_ spec: InputDeviceSpec) -> AudioDeviceID? {
-        let devices = allInputDevices()
+        resolve(spec)?.id
+    }
+
+    /// Resolve once and retain both ID and display name. Callers that already
+    /// enumerated devices can pass that snapshot to avoid another HAL query.
+    static func resolve(_ spec: InputDeviceSpec, in devices: [Device]? = nil) -> Device? {
         switch spec {
         case .systemDefault:
             return nil
         case .index(let i):
-            return (i >= 0 && i < devices.count) ? devices[i].id : nil
+            let available = devices ?? allInputDevices()
+            return (i >= 0 && i < available.count) ? available[i] : nil
         case .name(let n):
-            return matchByName(n, in: devices)
+            return matchByName(n, in: devices ?? allInputDevices())
         case .candidates(let names):
+            let available = devices ?? allInputDevices()
             for n in names {
-                if let id = matchByName(n, in: devices) {
+                if let device = matchByName(n, in: available) {
                     AppLog.info("🎙️ 自動選擇裝置：\(n)")
-                    return id
+                    return device
                 }
             }
             AppLog.warn("⚠️ 候選裝置均不可用，改用系統預設輸入")
@@ -87,15 +94,15 @@ enum CoreAudioDevices {
         }
     }
 
-    private static func matchByName(_ name: String, in devices: [Device]) -> AudioDeviceID? {
+    private static func matchByName(_ name: String, in devices: [Device]) -> Device? {
         let needle = name.trimmingCharacters(in: .whitespaces).lowercased()
         if let exact = devices.first(where: {
             $0.name.trimmingCharacters(in: .whitespaces).lowercased() == needle
         }) {
-            return exact.id
+            return exact
         }
         if let partial = devices.first(where: { $0.name.lowercased().contains(needle) }) {
-            return partial.id
+            return partial
         }
         return nil
     }

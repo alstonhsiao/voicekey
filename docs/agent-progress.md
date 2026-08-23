@@ -2,6 +2,15 @@
 
 ## Recent Progress
 
+### 2026-08-23 — VoiceKey 效能 P0/P1 快速改善（OPT-001/004/002/005）
+
+- Baseline（原生 VoiceKey、2026-07-12 起 92 筆）：STT+LLM P50 1,995ms、P95 6,946ms、P99/max 16,630ms；常駐 build 48 idle CPU 0.0%、physical footprint 27.8MB、peak 38.3MB。
+- OPT-001：session telemetry 新增 app version/build、audio bytes、stop/regex/vocab/paste/pipeline ms；SQLite migration 先查 schema、只新增缺少欄位；啟動 log 新增 setup ms 與版本。
+- OPT-004：目標 App 已在前景時不再 activate 或固定等待 120ms；只有需要切換前景 App 時保留原 120ms settle。
+- OPT-002：Cerebras request timeout 由 15 秒降為 8 秒，保留既有 fallback；避免 provider timeout 將尾端等待拉到約 15 秒。
+- OPT-005：錄音開始與啟動診斷各自只列舉／解析一次 CoreAudio 裝置，重用 resolved ID/name，降低重複 HAL query。
+- 驗證：76 tests passed（1 live API skipped、0 failures）；Release universal build 53 成功；self-signed `codesign --verify --deep --strict` 通過。未部署、未執行 live API，因此新的完整 pipeline Before/After 待日後部署後以相同條件累積。
+
 ### 2026-08-15 — Settings Window 計畫封存
 
 - Settings 核心功能已完成：72 個單元測試通過（1 個 live API skipped），`/Applications/VoiceKey.app` 已部署。

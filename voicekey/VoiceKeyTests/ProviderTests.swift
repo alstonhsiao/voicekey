@@ -90,6 +90,7 @@ final class ProviderTests: XCTestCase {
                                  maxTokens: 2048)
         let provider = CerebrasProvider(cfg: cfg)
         let req = provider.makeRequest(text: "輸入文字", systemPrompt: "系統提示")
+        XCTAssertEqual(req.timeoutInterval, 8)
         let json = try JSONSerialization.jsonObject(with: req.httpBody!) as! [String: Any]
         XCTAssertEqual(json["model"] as? String, "gpt-oss-120b")
         XCTAssertEqual(json["max_tokens"] as? Int, 2048)

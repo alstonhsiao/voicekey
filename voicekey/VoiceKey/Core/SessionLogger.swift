@@ -4,22 +4,30 @@ import SQLite3
 /// One row per transcription. Mirrors approach-6 `_voice_session.py` sessions table.
 struct SessionRecord {
     var timestamp: String
-    var modeId: String?
-    var modeName: String?
-    var provider: String?
-    var audioSec: Double?
-    var rawStt: String?
-    var regexOut: String?
-    var llmOut: String?
-    var vocabOut: String?
-    var finalText: String?
-    var sttMs: Int?
-    var llmMs: Int?
-    var pasteMethod: String?
-    var pasteOk: Int?
-    var llmFinishReason: String?
-    var errorType: String?
-    var errorDetail: String?
+    var appVersion: String? = nil
+    var appBuild: String? = nil
+    var modeId: String? = nil
+    var modeName: String? = nil
+    var provider: String? = nil
+    var audioSec: Double? = nil
+    var audioBytes: Int? = nil
+    var stopMs: Int? = nil
+    var rawStt: String? = nil
+    var regexOut: String? = nil
+    var regexMs: Int? = nil
+    var llmOut: String? = nil
+    var vocabOut: String? = nil
+    var vocabMs: Int? = nil
+    var finalText: String? = nil
+    var sttMs: Int? = nil
+    var llmMs: Int? = nil
+    var pasteMethod: String? = nil
+    var pasteOk: Int? = nil
+    var pasteMs: Int? = nil
+    var pipelineMs: Int? = nil
+    var llmFinishReason: String? = nil
+    var errorType: String? = nil
+    var errorDetail: String? = nil
 }
 
 /// SQLite session logger via libsqlite3 (zero external dependencies).
@@ -45,34 +53,44 @@ final class SessionLogger {
     CREATE TABLE IF NOT EXISTS sessions (
         id           INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp    TEXT    NOT NULL,
+        app_version  TEXT,
+        app_build    TEXT,
         mode_id      TEXT,
         mode_name    TEXT,
         provider     TEXT,
         audio_sec    REAL,
+        audio_bytes  INTEGER,
+        stop_ms      INTEGER,
         raw_stt      TEXT,
         regex_out    TEXT,
+        regex_ms     INTEGER,
         llm_out      TEXT,
+        vocab_out    TEXT,
+        vocab_ms     INTEGER,
         final_text   TEXT,
         stt_ms       INTEGER,
         llm_ms       INTEGER,
         paste_method TEXT,
         paste_ok     INTEGER,
+        paste_ms     INTEGER,
+        pipeline_ms  INTEGER,
+        llm_finish_reason TEXT,
         error_type   TEXT,
         error_detail TEXT
     )
     """
 
-    init() {
-        if sqlite3_open(Self.dbPath.path, &db) != SQLITE_OK {
-            AppLog.warn("⚠️ session log 開啟失敗：\(Self.dbPath.path)")
+    init(databaseURL: URL = SessionLogger.dbPath) {
+        if sqlite3_open(databaseURL.path, &db) != SQLITE_OK {
+            AppLog.warn("⚠️ session log 開啟失敗：\(databaseURL.path)")
             db = nil
             return
         }
         try? FileManager.default.setAttributes([.posixPermissions: 0o600],
-                                               ofItemAtPath: Self.dbPath.path)
+                                               ofItemAtPath: databaseURL.path)
         exec(Self.createSQL)
         migrate()
-        AppLog.info("📊 Session log: \(Self.dbPath.path)")
+        AppLog.info("📊 Session log: \(databaseURL.path)")
     }
 
     deinit {
@@ -93,9 +111,36 @@ final class SessionLogger {
     }
 
     private func migrate() {
-        // Late-added columns (ignore "duplicate column" errors).
-        exec("ALTER TABLE sessions ADD COLUMN llm_finish_reason TEXT")
-        exec("ALTER TABLE sessions ADD COLUMN vocab_out TEXT")
+        let additions = [
+            ("llm_finish_reason", "TEXT"),
+            ("vocab_out", "TEXT"),
+            ("app_version", "TEXT"),
+            ("app_build", "TEXT"),
+            ("audio_bytes", "INTEGER"),
+            ("stop_ms", "INTEGER"),
+            ("regex_ms", "INTEGER"),
+            ("vocab_ms", "INTEGER"),
+            ("paste_ms", "INTEGER"),
+            ("pipeline_ms", "INTEGER"),
+        ]
+        let existing = sessionColumns()
+        for (name, type) in additions where !existing.contains(name) {
+            exec("ALTER TABLE sessions ADD COLUMN \(name) \(type)")
+        }
+    }
+
+    private func sessionColumns() -> Set<String> {
+        guard let db else { return [] }
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, "PRAGMA table_info(sessions)", -1, &stmt, nil) == SQLITE_OK else {
+            return []
+        }
+        defer { sqlite3_finalize(stmt) }
+        var columns = Set<String>()
+        while sqlite3_step(stmt) == SQLITE_ROW, let rawName = sqlite3_column_text(stmt, 1) {
+            columns.insert(String(cString: rawName))
+        }
+        return columns
     }
 
     func log(_ r: SessionRecord) {
@@ -103,10 +148,11 @@ final class SessionLogger {
             guard let self, let db = self.db else { return }
             let sql = """
             INSERT INTO sessions
-            (timestamp, mode_id, mode_name, provider, audio_sec, raw_stt, regex_out,
-             llm_out, vocab_out, final_text, stt_ms, llm_ms, paste_method, paste_ok,
-             llm_finish_reason, error_type, error_detail)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            (timestamp, app_version, app_build, mode_id, mode_name, provider, audio_sec,
+             audio_bytes, stop_ms, raw_stt, regex_out, regex_ms, llm_out, vocab_out,
+             vocab_ms, final_text, stt_ms, llm_ms, paste_method, paste_ok, paste_ms,
+             pipeline_ms, llm_finish_reason, error_type, error_detail)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """
             var stmt: OpaquePointer?
             guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
@@ -127,26 +173,39 @@ final class SessionLogger {
             }
 
             text(1, r.timestamp)
-            text(2, r.modeId)
-            text(3, r.modeName)
-            text(4, r.provider)
-            dbl(5, r.audioSec)
-            text(6, r.rawStt)
-            text(7, r.regexOut)
-            text(8, r.llmOut)
-            text(9, r.vocabOut)
-            text(10, r.finalText)
-            int(11, r.sttMs)
-            int(12, r.llmMs)
-            text(13, r.pasteMethod)
-            int(14, r.pasteOk)
-            text(15, r.llmFinishReason)
-            text(16, r.errorType)
-            text(17, r.errorDetail)
+            text(2, r.appVersion)
+            text(3, r.appBuild)
+            text(4, r.modeId)
+            text(5, r.modeName)
+            text(6, r.provider)
+            dbl(7, r.audioSec)
+            int(8, r.audioBytes)
+            int(9, r.stopMs)
+            text(10, r.rawStt)
+            text(11, r.regexOut)
+            int(12, r.regexMs)
+            text(13, r.llmOut)
+            text(14, r.vocabOut)
+            int(15, r.vocabMs)
+            text(16, r.finalText)
+            int(17, r.sttMs)
+            int(18, r.llmMs)
+            text(19, r.pasteMethod)
+            int(20, r.pasteOk)
+            int(21, r.pasteMs)
+            int(22, r.pipelineMs)
+            text(23, r.llmFinishReason)
+            text(24, r.errorType)
+            text(25, r.errorDetail)
 
             if sqlite3_step(stmt) != SQLITE_DONE {
                 AppLog.warn("⚠️ session log 寫入失敗")
             }
         }
+    }
+
+    /// Wait for queued writes. Used by tests and orderly benchmark collection.
+    func flush() {
+        queue.sync {}
     }
 }
