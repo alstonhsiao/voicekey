@@ -8,4 +8,4 @@
 | `agent-operations.md` | 不可違反規則、執行順序、驗收基線 | 動到 API key、驗證流程前 |
 | `agent-progress.md` | 近期變更、待辦、未解項 | 接續上次工作或查歷史 |
 | `agent-refactor-report.md` | 治理重構歷史紀錄（archive） | 查架構演進脈絡 |
-| `archive/INDEX.md` | 已完工施工藍圖索引 | 查 2026-06-14 設計決策細節 |
+| `archive/INDEX.md` | 已完工施工藍圖與舊方案摘要索引 | 查歷史設計決策與舊方案脈絡 |

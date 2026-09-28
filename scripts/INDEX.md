@@ -4,5 +4,5 @@
 
 | Script | Purpose |
 |---|---|
-| `test_api_key.py` | 驗證 OpenAI / Grok / Groq API 連線（免費 smoke test） |
-| `test_cerebras.py` | 驗證 Cerebras API 連線 |
+| `test_api_key.py` | 驗證 OpenAI API 連線（`/v1/models`，免費 smoke test） |
+| `test_cerebras.py` | 驗證 Cerebras API 連線（一次小型 chat completion，消耗少量 token） |

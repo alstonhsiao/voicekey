@@ -2,8 +2,8 @@
 
 ## Non-Negotiable Rules
 - API keys 必須放在專案根目錄的 `env.local`；**絕對不可 commit**。
-  - 各 provider 的 key 名稱：`OPENAI_API_KEY`、`GROK_API_KEY`、`GROQ_API_KEY`、`CEREBRAS_API_KEY`
-- 任何需要呼叫 provider 的測試前，先用 `scripts/test_api_key.py` 或 `scripts/test_cerebras.py` 驗證 API 連線（免費，不消耗 token）。
+  - 各 provider 的 key 名稱：`OPENAI_API_KEY`、`XAI_API_KEY`（Grok）、`GROQ_API_KEY`、`CEREBRAS_API_KEY`
+- 任何需要呼叫 provider 的測試前，先驗證 API 連線：`scripts/test_api_key.py`（OpenAI `/v1/models`，免費）或 `scripts/test_cerebras.py`（送一次 `max_tokens=100` 的 chat completion，會消耗少量 token）。
 - Keys 不可出現在程式碼、log 輸出、或 git history 中。
 
 ## Execution Order

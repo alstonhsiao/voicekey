@@ -2,6 +2,13 @@
 
 ## Recent Progress
 
+### 2026-09-28 — Agent 文件 prompt-audit：修正過時事實
+
+- `docs/agent-operations.md`：key 名稱 `GROK_API_KEY` → `XAI_API_KEY`（對齊 `Secrets.swift`）；標明 `test_cerebras.py` 會消耗少量 token。
+- `docs/agent-context.md`、`scripts/INDEX.md`：`test_api_key.py` 只驗 OpenAI；移除已不存在的 archived approaches 例外。
+- `AGENTS.md`：移除過時「34 單元測試」與 2026-07-12 部署敘事（紀錄已在本檔）。`docs/INDEX.md`：archive 描述對齊現況。
+- 未處理（NEED_REVIEW）：`agent-operations.md` 規定 key 放專案根目錄 `env.local`，但 App 實際讀 App Support `env.local` / Keychain；屬安全規則，待使用者決定用字。
+
 ### 2026-08-23 — VoiceKey 效能 P0/P1 快速改善（OPT-001/004/002/005）
 
 - Baseline（原生 VoiceKey、2026-07-12 起 92 筆）：STT+LLM P50 1,995ms、P95 6,946ms、P99/max 16,630ms；常駐 build 48 idle CPU 0.0%、physical footprint 27.8MB、peak 38.3MB。

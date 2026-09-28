@@ -4,7 +4,7 @@
 
 ## Mission
 語音轉文字工具（Grok STT + Cerebras LLM，macOS 主力）。
-**主力方案**：VoiceKey（`voicekey/`，原 approach-7 / WhisperVoice，2026-07-11 改名）— 原生 Swift/AppKit 版，34 單元測試綠。**本機實機已通過**（2026-07-12）：路徑 A 部署（`VoiceKey-macOS-20260712.dmg` → `/Applications`）+ 煙測 + 部署後驗證 #1 多 App 貼上、#2 模式切換。管線：錄音→Grok STT→Cerebras LLM→拼音詞彙→自動貼上。功能與前代 Python 版對等（OpenCC 層省略）。bundle id `com.alston.VoiceKey`；舊 WhisperVoice 資料（App Support 詞彙檔、keychain、session DB）首次啟動自動遷移。其餘部署後驗證見 `todo.md`。
+**主力方案**：VoiceKey（`voicekey/`，原 approach-7 / WhisperVoice）— 原生 Swift/AppKit 版，已部署於本機 `/Applications`；測試以 `voicekey/test.sh` 為準。管線：錄音→Grok STT→Cerebras LLM→拼音詞彙→自動貼上。功能與前代 Python 版對等（OpenCC 層省略）。bundle id `com.alston.VoiceKey`；舊 WhisperVoice 資料（App Support 詞彙檔、keychain、session DB）首次啟動自動遷移。部署與驗證紀錄見 `docs/agent-progress.md`，未完成的部署後驗證見 `todo.md`。
 **分發**：`./package.sh && ./make-distribution.sh` → `voicekey/dist/VoiceKey-macOS-YYYYMMDD.{zip,dmg}`。**zip/dmg 不進 git**（本機產物，跨機用 AirDrop/USB 傳）；說明文件進 git：`voicekey/dist/INSTALL-zh-TW.md`。
 **歷史方案**：approach-3（Windows）與 approach-6（macOS Python）原始碼已於 2026-07-22 移除；設計、決策與踩坑摘要見 `docs/archive/approach-3-windows.md`、`docs/archive/approach-6-macos.md`。Git 歷史保留完整 source，目前不保留可直接執行的退路。
 **架構**：Grok STT（第一層）→ Cerebras LLM（第二層修正）→ 拼音詞彙（第三層精修）。

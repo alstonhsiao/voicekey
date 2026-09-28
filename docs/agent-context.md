@@ -23,9 +23,9 @@
 | `scripts/INDEX.md` | 開發驗證腳本索引 |
 | `docs/archive/INDEX.md` | 已完工歷史施工藍圖索引 |
 | `env.local` | 開發用 API keys（project root，git-ignored） |
-| `scripts/test_api_key.py` | 驗證 OpenAI / Grok / Groq 連線 |
+| `scripts/test_api_key.py` | 驗證 OpenAI 連線（`/v1/models`，免費） |
 | `scripts/test_cerebras.py` | 驗證 Cerebras 連線 |
 | `todo.md` | 中/低優先未完成項目 |
 
 ## Scope Boundaries
-- Prefer changes inside `voicekey/` unless explicitly working on frozen/archived approaches.
+- Prefer changes inside `voicekey/`；舊方案原始碼已移除，只剩 `docs/archive/` 的摘要。
